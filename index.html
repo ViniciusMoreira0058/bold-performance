@@ -323,10 +323,11 @@ function gerarDemo(){
         assinaturas: rnd() < .27*ev ? 1 : 0, produtos: rnd() < .55 ? Math.round((25 + rnd()*90) * ev) : 0, obs:"" });
     });
   }
-  return { v:1, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc };
+  equipe.push({ id:"b5", nome:"Pedro Alves", email:"pedro@demo", papel:"barbeiro", ativo:false, aprovado:false, comissao_servicos:50, comissao_produtos:10, ganho_desejado:0, ticket_medio:0 });
+  return { v:2, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc };
 }
 let demoDB = null;
-const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 1) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
+const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 2) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
 const demoSave = () => lsSet("bp-demo", demoDB);
 const demo = {
   async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; return demoLoad().equipe.find(e => e.id === id) || null; },
@@ -525,7 +526,8 @@ const S = {
   lancData:today(), lancBarb:null, metaMes:mesIni(today()),
 };
 const charts = [];
-const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro");
+const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovado !== false);
+const pendentes = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovado === false);
 const ativos = () => barbeiros().filter(e => e.ativo);
 const metasDe = id => S.metas.filter(m => m.barbeiro_id === id);
 const nomeDe = id => (S.equipe.find(e => e.id === id) || {}).nome || "—";
@@ -724,10 +726,12 @@ async function pgEquipe(){
   const notaEq = nota(tot, metaTot).nota;
   const cont = { good:0, warn:0, bad:0 }; linhas.forEach(l => l.av.nivel && cont[l.av.nivel]++);
   $("#psub").textContent = CFG.nome;
-  if (!ativos().length) return `<section class="card"><h2>Comece cadastrando a equipe</h2><p class="sm muted">Vá em Barbeiros, cadastre o nome e o e-mail de cada barbeiro e depois defina as metas do mês.</p><div class="actions"><button class="btn" data-tab="barbeiros">Cadastrar barbeiros</button></div></section>`;
+  const np = pendentes().length;
+  const avisoNovos = np ? `<section class="card" style="border-color:var(--accent)"><div class="row"><div><h2>${np} novo${np > 1 ? "s" : ""} cadastro${np > 1 ? "s" : ""}</h2><span class="sm muted">${pendentes().map(b => esc(b.nome)).join(", ")} criou a conta e aguarda a sua aprovação.</span></div><button class="btn" data-tab="barbeiros">Ver e aprovar</button></div></section>` : "";
+  if (!ativos().length) return `${avisoNovos}<section class="card"><h2>Comece montando a equipe</h2><p class="sm muted">Mande o link do app para os barbeiros. Cada um toca em <b>Criar conta</b> e aparece aqui para você aprovar. Depois defina as metas do mês.</p><div class="actions"><button class="btn" data-act="copiarLink">Copiar link do app</button><button class="btn sec" data-tab="barbeiros">Barbeiros</button></div></section>`;
   const alertas = linhas.filter(l => l.av.nivel === "bad");
   const k = (rot, real, meta, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${meta > 0 ? barra(real/meta) + `<div class="meta"><span>${pctTxt(real/meta)}</span><span>meta ${fmt(meta)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
-  return `${periodoBar()}
+  return `${avisoNovos}${periodoBar()}
   <section class="card"><div class="hero">
     <div class="gauge">${gaugeSVG(notaEq)}<div class="gv"><b class="${nivelDe(notaEq) || "muted"}">${notaEq == null ? "—" : dec1(notaEq)}</b><span class="${nivelDe(notaEq) || "muted"}">${notaEq == null ? "sem nota" : NIVEL_NOME[nivelDe(notaEq)]}</span></div></div>
     <div class="hero-txt"><span class="lbl">Nota da equipe · ${TIPO_NOME[p.tipo].toLowerCase()}</span><h2>${esc(p.label)}</h2>
@@ -876,14 +880,22 @@ async function pgBarbeiros(){
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
     <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button></div></div>`;
-  return `<section class="card"><h2>Novo barbeiro</h2><span class="sm muted">Cadastre o e-mail e mande o link do app para ele. Ele toca em <b>Criar conta</b> com esse mesmo e-mail e já entra no painel dele.</span>
+  const novos = pendentes();
+  const novoCard = b => `<div class="li"><div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div>
+    <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
+    <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
+    <button class="btn sm" data-act="aprovar" data-v="${b.id}" style="align-self:flex-end">Aprovar</button>
+    <button class="btn danger sm" data-act="recusar" data-v="${b.id}" style="align-self:flex-end">Recusar</button></div></div>`;
+  return `${novos.length ? `<section class="card" style="border-color:var(--accent)"><h2>Novos cadastros</h2><span class="sm muted">Criaram a conta pelo app. Confira a comissão e aprove para eles entrarem no ranking e começarem a lançar.</span><div class="list">${novos.map(novoCard).join("")}</div></section>` : ""}
+  <section class="card"><div class="row"><div><h2>Link para os barbeiros</h2><span class="sm muted">Mande este link. O barbeiro toca em <b>Criar conta</b> e aparece aqui para você aprovar.</span></div><button class="btn" data-act="copiarLink">Copiar link do app</button></div></section>
+  <section class="card"><h2>Cadastrar pelo e-mail</h2><span class="sm muted">Opcional. Se você cadastrar o e-mail antes, o barbeiro já entra aprovado e com a comissão certa quando criar a conta.</span>
     <div class="fgrid" style="margin-top:12px">
       <label class="f">Nome<input id="n-nome" placeholder="Nome do barbeiro"></label>
       <label class="f">E-mail<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
       <label class="f">Comissão serviços %<input id="n-cs" inputmode="decimal" value="50"></label>
       <label class="f">Comissão produtos %<input id="n-cp" inputmode="decimal" value="10"></label>
     </div><div class="actions"><button class="btn" data-act="convidar">Cadastrar</button></div></section>
-  ${pend.length ? `<section class="card"><h2>Aguardando criar a conta</h2><div class="list">${pend.map(c => `<div class="li"><div><b>${esc(c.nome)}</b><div class="xs muted">${esc(c.email)} · ${c.papel === "admin" ? "admin" : "barbeiro"}</div></div><div class="row" style="gap:8px"><button class="btn ghost sm" data-act="copiarLink">Copiar link do app</button><button class="btn danger sm" data-act="excluirConvite" data-v="${esc(c.email)}">Cancelar</button></div></div>`).join("")}</div></section>` : ""}
+  ${pend.length ? `<section class="card"><h2>Aguardando criar a conta</h2><div class="list">${pend.map(c => `<div class="li"><div><b>${esc(c.nome)}</b><div class="xs muted">${esc(c.email)} · ${c.papel === "admin" ? "admin" : "barbeiro"}</div></div><div class="row" style="gap:8px"><button class="btn danger sm" data-act="excluirConvite" data-v="${esc(c.email)}">Cancelar</button></div></div>`).join("")}</div></section>` : ""}
   <section class="card"><h2>Equipe</h2><div class="list">${barbeiros().map(card).join("") || `<p class="empty">Nenhum barbeiro ainda.</p>`}</div></section>`;
 }
 
@@ -989,6 +1001,15 @@ const ACOES = {
     if (b.ativo && !await confirmar(`Desativar ${b.nome}? Ele não aparece mais no ranking e não consegue lançar. Os dados ficam guardados.`)) return;
     await DB.salvarPerfil(v, { ativo:!b.ativo }); S.equipe = await DB.equipe(); render();
   },
+  async aprovar(v){
+    const g = k => document.querySelector(`[data-perfil="${v}"][data-k="${k}"]`).value;
+    await DB.salvarPerfil(v, { aprovado:true, ativo:true, comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) });
+    S.equipe = await DB.equipe(); toast(`${nomeDe(v)} aprovado. Agora defina a meta dele em Metas do mês.`); render();
+  },
+  async recusar(v){
+    if (!await confirmar(`Recusar ${nomeDe(v)}? Ele não vai conseguir usar o app. Dá para reativar depois na lista da equipe.`)) return;
+    await DB.salvarPerfil(v, { aprovado:true, ativo:false }); S.equipe = await DB.equipe(); render();
+  },
   dia: v => { v = +v; const s = new Set(CFG.dias_trabalho); s.has(v) ? s.delete(v) : s.add(v); if (!s.size) return; CFG.dias_trabalho = [...s].sort(); render(); },
   async salvarCfg(){ CFG.nome = $("#a-nome").value.trim() || "Barbearia"; await DB.salvarConfig(CFG); toast("Ajustes salvos."); render(); },
   async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
@@ -1029,16 +1050,17 @@ function telaLogin(modo, msg){
   if (DEMO) {
     const eq = demoLoad().equipe;
     R.innerHTML = `<div class="auth"><div class="auth-box"><img src="icons/logo.png" alt="Bold Performance" width="300" height="198">
+      ${msg ? `<div class="auth-msg" style="background:var(--accent-soft)">${msg}</div>` : ""}
       <div class="auth-msg"><b>Modo demonstração.</b> Dados fictícios, salvos só neste aparelho. Escolha com qual conta entrar:</div>
       <button class="btn" data-act="demoEntrar" data-v="adm">Entrar como admin (Vinicius)</button>
-      ${eq.filter(e => e.papel === "barbeiro").map(b => `<button class="btn ghost" data-act="demoEntrar" data-v="${b.id}">Entrar como ${esc(b.nome)}</button>`).join("")}
+      ${eq.filter(e => e.papel === "barbeiro").map(b => `<button class="btn ghost" data-act="demoEntrar" data-v="${b.id}">Entrar como ${esc(b.nome)}${b.aprovado === false ? " (cadastro novo)" : ""}</button>`).join("")}
     </div></div>`;
     return;
   }
   const titulos = { entrar:"Entrar", criar:"Criar conta", esqueci:"Recuperar senha" };
   R.innerHTML = `<div class="auth"><form class="auth-box" id="authForm" novalidate><img src="icons/logo.png" alt="Bold Performance" width="300" height="198">
     ${msg ? `<div class="auth-msg">${msg}</div>` : ""}
-    ${modo === "criar" ? `<p class="sm muted" style="margin:0">Use o e-mail que o admin cadastrou para você.</p>` : ""}
+    ${modo === "criar" ? `<p class="sm muted" style="margin:0">Crie a sua conta. O admin recebe o seu cadastro e libera o acesso.</p><label class="f">Seu nome<input id="au-nome" autocomplete="name" required></label>` : ""}
     <label class="f">E-mail<input type="email" id="au-email" autocomplete="email" required></label>
     ${modo !== "esqueci" ? `<label class="f">Senha<input type="password" id="au-senha" autocomplete="${modo === "criar" ? "new-password" : "current-password"}" minlength="6" required></label>` : ""}
     <button class="btn" type="submit">${titulos[modo]}</button>
@@ -1053,8 +1075,9 @@ function telaLogin(modo, msg){
       if (modo === "entrar") { const { error } = await sb.auth.signInWithPassword({ email, password:senha }); if (error) throw error; await iniciar(); }
       else if (modo === "criar") {
         if (!senha || senha.length < 6) throw new Error("A senha precisa de pelo menos 6 caracteres.");
-        const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ emailRedirectTo:location.origin + location.pathname } }); if (error) throw error;
-        if (data.session) await iniciar(); else telaLogin("entrar", "Conta criada. Confirme pelo link que enviamos para o seu e-mail e depois entre.");
+        const nome = ($("#au-nome").value || "").trim(); if (!nome) throw new Error("Preencha o seu nome.");
+        const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ emailRedirectTo:location.origin + location.pathname, data:{ app:"bold", nome } } }); if (error) throw error;
+        if (data.session) await iniciar(); else telaLogin("entrar", "Conta criada. Confirme pelo link que enviamos para o seu e-mail e depois entre aqui. O admin precisa aprovar o seu acesso.");
       } else { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo:location.origin + location.pathname }); if (error) throw error; telaLogin("entrar", "Enviamos um link para criar uma nova senha."); }
     } catch (err) {
       const m = /Invalid login/i.test(err.message) ? "E-mail ou senha incorretos." : /confirm/i.test(err.message) ? "Confirme o seu e-mail pelo link que enviamos antes de entrar." : err.message;
@@ -1068,6 +1091,7 @@ async function iniciar(){
   try { me = await DB.me(); } catch (e) { console.error(e); return telaLogin("entrar", "Não foi possível conectar. Verifique a internet."); }
   if (!me) return telaLogin("entrar");
   if (me.semPerfil) { await sb.auth.signOut(); return telaLogin("entrar", `A conta <b>${esc(me.email)}</b> ainda não foi liberada. Peça para o admin cadastrar este e-mail em Barbeiros.`); }
+  if (me.aprovado === false) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", `Olá, ${esc(primeiroNome(me.nome))}! Seu cadastro foi enviado para o admin. Assim que ele aprovar, é só entrar de novo.`); }
   if (!me.ativo) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", "Esta conta está desativada. Fale com o admin."); }
   S.me = me;
   await carregarBase();
