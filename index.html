@@ -265,6 +265,25 @@ input,select,textarea{border-radius:14px}
 .auth{background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.88) 100%),url(icons/fundo-linhas.jpg) center/cover no-repeat #000}
 .auth-box{background:rgba(10,10,10,.42);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:28px 22px}
 .auth-box img{filter:drop-shadow(0 6px 24px rgba(0,0,0,.6))}
+
+/* ---------- topo com a marca BOLD e fotos de perfil ---------- */
+.top-in{flex-direction:column;align-items:stretch;gap:10px}
+.mtop{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mtop .wm{height:clamp(36px,11vw,54px);width:auto;display:block;filter:drop-shadow(0 4px 18px rgba(255,117,31,.25))}
+.ttl{min-width:0}
+.top-av{width:40px;height:40px;border-radius:50%;border:0;padding:0;background:none;cursor:pointer;flex:0 0 40px}
+.top-av .avatar{width:40px;height:40px;flex-basis:40px}
+@media (min-width:960px){.mtop{display:none}}
+.avatar{font:600 14px var(--display);font-style:normal;overflow:hidden}
+img.avatar{object-fit:cover;background:var(--surface-2);display:block}
+.av-sm{width:28px;height:28px;flex:0 0 28px;font-size:11px}
+.av-lg{width:96px;height:96px;flex:0 0 96px;font-size:30px}
+.who{display:inline-flex;align-items:center;gap:10px;min-width:0}
+.foto-box{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:10px}
+.av-edit{position:relative;cursor:pointer;border-radius:50%}
+.av-edit input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.av-edit::after{content:"✎";position:absolute;right:-2px;bottom:-2px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;display:grid;place-items:center}
+.btn input[type=file]{display:none}
 </style>
 <script>(function(){try{var m=localStorage.getItem("bp-tema")||"dark";document.documentElement.dataset.theme=m}catch(e){}})()</script>
 </head>
@@ -272,7 +291,7 @@ input,select,textarea{border-radius:14px}
 <div id="authRoot"><p class="loading">Carregando…</p></div>
 <div class="app" id="app" hidden>
   <aside class="side" id="sidebar">
-    <div class="brand"><img src="icons/logo.png" alt="Bold Performance" width="150" height="99"><button class="icon-btn burger fechar" data-act="menu" data-v="0" aria-label="Fechar menu">✕</button></div>
+    <div class="brand"><img src="icons/bold-wordmark.png" alt="Bold" width="150" height="51"><button class="icon-btn burger fechar" data-act="menu" data-v="0" aria-label="Fechar menu">✕</button></div>
     <div class="side-label" id="sidelabel">Menu</div>
     <nav id="sidenav" aria-label="Menu principal"></nav>
     <div class="side-foot">
@@ -284,8 +303,8 @@ input,select,textarea{border-radius:14px}
   <div class="shell">
     <div class="demo-band" id="demoband" hidden></div>
     <header class="top"><div class="top-in">
-      <button class="icon-btn burger" data-act="menu" data-v="1" aria-label="Abrir menu" aria-controls="sidebar">☰</button>
-      <div style="min-width:0;flex:1"><div class="mlogo"><img src="icons/logo.png" alt="Bold Performance" height="22"></div><h1 id="ptitle"></h1><span class="sub" id="psub"></span></div>
+      <div class="mtop"><button class="icon-btn burger" data-act="menu" data-v="1" aria-label="Abrir menu" aria-controls="sidebar">☰</button><img class="wm" src="icons/bold-wordmark.png" alt="Bold" width="700" height="238"><button class="top-av" id="topav" data-tab="ajustes" aria-label="Seu perfil"></button></div>
+      <div class="ttl"><h1 id="ptitle"></h1><span class="sub" id="psub"></span></div>
     </div></header>
     <main id="main"></main>
   </div>
@@ -330,6 +349,7 @@ const dec1 = v => (Math.round((v || 0)*10)/10).toLocaleString("pt-BR", {minimumF
 const pctTxt = r => r == null ? "—" : Math.round(r*100) + "%";
 const parseNum = v => { let s = String(v ?? "").replace(/[R$\s]/g, ""); if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isFinite(n) && n >= 0 ? n : 0; };
 const numIn = v => v ? String(Math.round(v*100)/100).replace(".", ",") : "";
+const avatar = (p, cls) => p && p.foto_url ? `<img class="avatar ${cls || ""}" src="${esc(p.foto_url)}" alt="" loading="lazy">` : `<div class="avatar ${cls || ""}">${esc(iniciais(p && p.nome))}</div>`;
 const iniciais = n => (n || "?").trim().split(/\s+/).slice(0,2).map(p => p[0]).join("").toUpperCase();
 function toast(t){ const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 3200); }
 // confirmação dentro da página (o confirm() do navegador não funciona em todo lugar)
@@ -351,6 +371,12 @@ const cloud = {
   async salvarConfig(c){ const { error } = await sb.from("barbearia_config").update({ nome:c.nome, dias_trabalho:c.dias_trabalho, atualizado_em:new Date().toISOString() }).eq("id", 1); if (error) throw error; },
   async equipe(){ const { data, error } = await sb.from("equipe").select("*").order("nome"); if (error) throw error; return data; },
   async salvarPerfil(id, campos){ const { error } = await sb.from("equipe").update(campos).eq("id", id); if (error) throw error; },
+  async salvarFoto(id, blob){
+    const path = `${id}.jpg`, st = sb.storage.from("bp-avatares");
+    const { error } = await st.upload(path, blob, { upsert:true, contentType:"image/jpeg", cacheControl:"3600" });
+    if (error) throw new Error(/bucket/i.test(error.message) ? "Falta rodar o arquivo 003_fotos.sql no Supabase." : error.message);
+    return st.getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
+  },
   async convites(){ const { data, error } = await sb.from("convites").select("*").order("criado_em"); if (error) throw error; return data; },
   async salvarConvite(c){ const { error } = await sb.from("convites").upsert({ ...c, email:c.email.toLowerCase() }); if (error) throw error; },
   async excluirConvite(email){ const { error } = await sb.from("convites").delete().eq("email", email); if (error) throw error; },
@@ -409,6 +435,7 @@ const demo = {
   async salvarConfig(c){ demoLoad().config = { nome:c.nome, dias_trabalho:c.dias_trabalho }; demoSave(); },
   async equipe(){ const me = await demo.me(); const all = demoLoad().equipe; return me.papel === "admin" ? all.map(e => ({...e})) : all.filter(e => e.id === me.id).map(e => ({...e})); },
   async salvarPerfil(id, campos){ Object.assign(demoLoad().equipe.find(e => e.id === id), campos); demoSave(); },
+  async salvarFoto(id, blob){ return await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); }); },
   async convites(){ return demoLoad().convites.slice(); },
   async salvarConvite(c){
     const db = demoLoad(); c = { ...c, email:c.email.toLowerCase() };
@@ -632,7 +659,8 @@ function renderNav(){
   const curtos = S.me.papel === "admin" ? ["dashboard","equipe","metas","barbeiros"] : ["painel","lancar","calc","historico"];
   const nomesCurtos = { dashboard:"Início", equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
   $("#bottomnav").innerHTML = curtos.map(k => `<button data-tab="${k}" ${S.tab === k || (k === "equipe" && S.tab === "painel" && S.me.papel === "admin") ? 'aria-current="page"' : ""}>${ICONE[k]}${nomesCurtos[k]}</button>`).join("") + `<button data-act="menu" data-v="1">${'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'}Mais</button>`;
-  $("#sideuser").innerHTML = `<div class="avatar">${esc(iniciais(S.me.nome))}</div><div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
+  $("#topav").innerHTML = avatar(S.me);
+  $("#sideuser").innerHTML = `${avatar(S.me)}<div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
 }
 function menu(on){ $("#app").classList.toggle("menu-open", on); document.body.style.overflow = on ? "hidden" : ""; }
 function ir(tab){ S.tab = tab; menu(false); render(); window.scrollTo(0, 0); }
@@ -867,7 +895,7 @@ async function pgDashboard(){
       ${faltamLancar.length ? `<div class="hero-dica warn">Falta lançar: ${faltamLancar.map(b => esc(primeiroNome(b.nome))).join(", ")}.</div>` : ehDiaUtil(diaRef) ? `<div class="hero-dica good">Todos lançaram.</div>` : `<p class="sm muted" style="margin:8px 0 0">Dia de folga.</p>`}
     </section>
     <section class="card"><div class="card-head"><h2>Destaques do mês</h2><button class="arrow" data-tab="equipe" aria-label="Ver equipe">↗</button></div><div class="list" style="margin-top:6px">
-      ${top ? `<div class="li"><span>${pill("good", "Melhor nota")} <b>${esc(top.b.nome)}</b></span><span class="nb good">${dec1(top.av.nota)}</span></div>` : ""}
+      ${top ? `<div class="li"><span class="who">${avatar(top.b, "av-sm")}<b>${esc(top.b.nome)}</b> ${pill("good", "Melhor nota")}</span><span class="nb good">${dec1(top.av.nota)}</span></div>` : ""}
       ${atencao.length ? atencao.map(l => `<div class="li" data-act="abrir" data-v="${l.b.id}" style="cursor:pointer"><span>${pill("bad", "Atenção")} <b>${esc(l.b.nome)}</b></span><span class="nb bad">${dec1(l.av.nota)}</span></div>`).join("") : comNota.length ? `<div class="li"><span class="sm muted">Ninguém com nota ruim no mês.</span></div>` : `<div class="li"><span class="sm muted">Sem notas ainda: defina as metas do mês.</span></div>`}
     </div></section>
   </div>
@@ -875,7 +903,7 @@ async function pgDashboard(){
   <section class="card"><div class="card-head"><div><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = meta</span></div><button class="arrow" data-tab="metas" aria-label="Metas do mês">↗</button></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
 
   <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
-    <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
+    <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div class="who" style="min-width:0">${avatar(b, "av-sm")}<div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
       <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
   ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm))}`;
 }
@@ -936,7 +964,7 @@ async function pgEquipe(){
   </div>
   <section class="card"><div class="row"><h2>Ranking do período</h2><span class="xs muted">Toque em um barbeiro para abrir o painel</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Barbeiro</th><th>Nota</th><th>Faturamento</th><th>% meta</th><th>Extras</th><th>Assin.</th><th>Produtos</th><th>Atend.</th><th>Ticket</th></tr></thead><tbody>
-    ${linhas.map(({ b, av }) => `<tr class="click" data-act="abrir" data-v="${b.id}"><td><b>${esc(b.nome)}</b></td><td><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></td>
+    ${linhas.map(({ b, av }) => `<tr class="click" data-act="abrir" data-v="${b.id}"><td><span class="who">${avatar(b, "av-sm")}<b>${esc(b.nome)}</b></span></td><td><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></td>
       <td>${money0(av.t.faturamento)}</td><td class="${av.meta.faturamento ? nivelDe(av.t.faturamento/av.meta.faturamento*9) : "muted"}">${av.meta.faturamento ? pctTxt(av.t.faturamento/av.meta.faturamento) : "—"}</td>
       <td>${money0(av.t.extras)}</td><td>${int(av.t.assinaturas)}</td><td>${money0(av.t.produtos)}</td><td>${int(av.t.atendimentos)}</td><td>${money(av.t.ticket)}</td></tr>`).join("")}
     ${media ? `<tr class="avg"><td>Média</td><td>${media.nota == null ? "—" : dec1(media.nota)}</td><td>${money0(media.faturamento)}</td><td></td><td>${money0(media.extras)}</td><td>${dec1(media.assinaturas)}</td><td>${money0(media.produtos)}</td><td>${int(media.atendimentos)}</td><td>${money(media.ticket)}</td></tr>` : ""}
@@ -1063,13 +1091,13 @@ async function pgBarbeiros(){
   S.convites = await DB.convites();
   const pend = S.convites.filter(c => !S.equipe.some(e => (e.email || "").toLowerCase() === c.email.toLowerCase()));
   $("#psub").textContent = "Contas da equipe, comissões e convites";
-  const card = b => `<div class="li"><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")}<div class="xs muted">${esc(b.email || "")}</div></div>
+  const card = b => `<div class="li"><div class="who" style="min-width:0"><label class="av-edit" title="Trocar foto">${avatar(b)}<input type="file" accept="image/*" data-ch="foto" data-id="${b.id}" aria-label="Trocar foto de ${esc(b.nome)}"></label><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
     <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button></div></div>`;
   const novos = pendentes();
-  const novoCard = b => `<div class="li"><div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div>
+  const novoCard = b => `<div class="li"><div class="who" style="min-width:0">${avatar(b)}<div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn sm" data-act="aprovar" data-v="${b.id}" style="align-self:flex-end">Aprovar</button>
@@ -1096,6 +1124,9 @@ async function pgAjustes(){
     <div style="margin-top:12px"><span class="lbl">Dias de trabalho</span><div class="chips" style="margin-top:6px">${D.map((n,i) => `<button class="chip" data-act="dia" data-v="${i}" aria-pressed="${CFG.dias_trabalho.includes(i)}">${n}</button>`).join("")}</div>
     <span class="xs muted">As metas são divididas por esses dias. Ex.: segunda a sábado = cerca de 26 dias no mês.</span></div>
     <div class="actions"><button class="btn" data-act="salvarCfg">Salvar</button></div></section>` : ""}
+  <section class="card"><h2>Foto de perfil</h2><span class="sm muted">Aparece no menu, no ranking e para o admin.</span>
+    <div class="foto-box"><label class="av-edit">${avatar(S.me, "av-lg")}<input type="file" accept="image/*" data-ch="foto" data-id="${S.me.id}" aria-label="Escolher foto"></label>
+      <div class="row" style="gap:8px"><label class="btn">Escolher foto<input type="file" accept="image/*" data-ch="foto" data-id="${S.me.id}"></label>${S.me.foto_url ? `<button class="btn ghost" data-act="tirarFoto" data-v="${S.me.id}">Remover</button>` : ""}</div></div></section>
   <section class="card"><h2>Aparência</h2><div class="chips" style="margin-top:8px">${[["dark","Escuro"],["light","Claro"]].map(([k,n]) => `<button class="chip" data-act="temaSet" data-v="${k}" aria-pressed="${(document.documentElement.dataset.theme || "dark") === k}">${n}</button>`).join("")}</div></section>
   <section class="card"><h2>Conta</h2><p class="sm muted" style="margin:4px 0 0">${esc(S.me.nome)} · ${esc(S.me.email || "")} · ${admin ? "Administrador" : "Barbeiro"}</p>
     <div class="actions">${DEMO ? "" : `<button class="btn sec" data-act="novaSenha">Trocar senha</button>`}<button class="btn ghost" data-act="sair">Sair</button></div></section>
@@ -1166,6 +1197,7 @@ const ACOES = {
     await DB.salvarLanc(l); toast(`Dia ${dataBR(S.lancData)} salvo.`); render();
   },
   async excluirLanc(){ if (!await confirmar("Excluir o lançamento deste dia?")) return; await DB.excluirLanc(S.me.papel === "admin" ? S.lancBarb : S.me.id, S.lancData); toast("Lançamento excluído."); render(); },
+  async tirarFoto(v){ await DB.salvarPerfil(v, { foto_url:null }); await recarregarEquipe(); toast("Foto removida."); render(); },
   async salvarCalc(){
     const campos = { ganho_desejado:parseNum($("#c-ganho").value), ticket_medio:parseNum($("#c-ticket").value) };
     await DB.salvarPerfil(S.me.id, campos); Object.assign(S.me, campos); const e = S.equipe.find(x => x.id === S.me.id); if (e) Object.assign(e, campos); toast("Meta pessoal salva.");
@@ -1213,7 +1245,24 @@ document.addEventListener("click", async e => {
   try { await fn(t.dataset.v); } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
   finally { if (t.tagName === "BUTTON" && document.contains(t)) t.disabled = false; }
 });
-document.addEventListener("change", e => {
+// reduz a foto para 320×320 (recorte central) antes de enviar
+async function fotoQuadrada(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => err(new Error("Não consegui abrir essa imagem.")); i.src = url; });
+    const t = Math.min(img.naturalWidth, img.naturalHeight), c = document.createElement("canvas"); c.width = c.height = 320;
+    c.getContext("2d").drawImage(img, (img.naturalWidth - t) / 2, (img.naturalHeight - t) / 2, t, t, 0, 0, 320, 320);
+    return await new Promise(ok => c.toBlob(ok, "image/jpeg", .86));
+  } finally { URL.revokeObjectURL(url); }
+}
+async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.equipe.find(e => e.id === S.me.id); if (eu) S.me = eu; }
+document.addEventListener("change", async e => {
+  if (e.target.dataset.ch === "foto") {
+    const f = e.target.files && e.target.files[0], id = e.target.dataset.id; if (!f) return;
+    try { toast("Enviando foto…"); const url = await DB.salvarFoto(id, await fotoQuadrada(f)); await DB.salvarPerfil(id, { foto_url:url }); await recarregarEquipe(); toast("Foto atualizada."); render(); }
+    catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
+    return;
+  }
   const k = e.target.dataset.ch; if (!k) return;
   if (k === "lancData") { if (!e.target.value) return; S.lancData = e.target.value > today() ? today() : e.target.value; }
   if (k === "lancBarb") S.lancBarb = e.target.value;
