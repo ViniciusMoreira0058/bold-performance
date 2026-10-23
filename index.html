@@ -695,7 +695,7 @@ function frasePrincipal(av, nome){
 const S = {
   me:null, equipe:[], metas:[], convites:[],
   tab:null, per:{ tipo:"mes", ref:today() }, ver:null,      // ver = barbeiro aberto pelo admin
-  lancData:today(), lancBarb:null, metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
+  lancData:today(), lancBarb:null, lancEdit:null, metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
 };
 const charts = [];
 const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovado !== false);
@@ -1214,7 +1214,7 @@ function acumular(ls, d, novo){
   const antes = ls.filter(l => l.data < d), ult = antes.map(l => l.data).sort().at(-1);
   const tA = totais(antes), atual = totais(ls.filter(l => l.data <= d)), ex = ls.find(l => l.data === d);
   const prox = ls.filter(l => l.data > d).sort((a, b) => a.data < b.data ? -1 : 1)[0];
-  if (CAMPOS_AC.every(([k]) => Math.abs(novo[k] - atual[k]) < .005)) return { lista:[] };
+  if (CAMPOS_AC.every(([k]) => Math.abs(novo[k] - atual[k]) < .005)) return { lista:ex ? [] : [{ ...linhaLanc({ data:d }) }] };  // sem mudança: só marca o dia como atualizado
   const dia = {}, lista = [];
   for (const [k, n] of CAMPOS_AC) { dia[k] = r2(novo[k] - tA[k]); if (dia[k] < 0) return { erro:`${n} (${money(novo[k])}) menor que o já lançado até ${dataBR(ult)} (${money(tA[k])}). Corrija ou exclua aquela atualização.` }; }
   if (prox) {
@@ -1238,21 +1238,25 @@ async function pgLancar(){
   const card = b => {
     const ls = doMes.filter(l => l.barbeiro_id === b.id), antes = ls.filter(l => l.data < d), ult = antes.map(l => l.data).sort().at(-1);
     const atual = totais(ls.filter(l => l.data <= d)), base = totais(antes).faturamento, meta = +(metasDe(b.id).find(x => String(x.mes).slice(0,10) === mi) || {}).faturamento || 0;
-    const depois = ls.some(l => l.data > d);
+    const depois = ls.some(l => l.data > d), feito = ls.some(l => l.data === d);
+    if (feito && S.lancEdit !== b.id) return `<div class="li" style="align-items:center"><span class="who" style="flex:1;min-width:0">${avatar(b, "av-sm")}<span style="min-width:0"><b>${esc(b.nome)}</b><br><span class="xs muted">${money0(atual.faturamento)} no mês${meta ? ` · ${pctTxt(atual.faturamento / meta)} da meta` : ""}</span></span></span>${pill("good", "✓ salvo")}<button class="btn ghost sm" data-act="lancEdit" data-v="${b.id}">Editar</button></div>`;
     return `<div class="mrow acum" data-b="${b.id}" data-base="${base}" data-meta="${meta}" data-ult="${ult ? dataBR(ult) : ""}">
       <div class="row"><span class="who">${avatar(b, "av-sm")}<b>${esc(b.nome)}</b></span><span class="xs muted">${ls.some(l => l.data === d) ? "atualizado neste dia" : ult ? `última atualização ${dataBR(ult)}` : "primeira do mês"}${depois ? " · tem data posterior" : ""}</span></div>
       <div class="fgrid" style="margin-top:8px">${CAMPOS_AC.map(([k, n]) => `<label class="f">${n} R$<input inputmode="decimal" data-ac="${k}" value="${numIn(atual[k])}" placeholder="0"></label>`).join("")}</div>
-      <div class="sm acum-tot" style="margin-top:8px">${acumTxt(atual.faturamento, atual.faturamento - base, meta, ult ? dataBR(ult) : "")}</div></div>`;
+      <div class="sm acum-tot" style="margin-top:8px">${acumTxt(atual.faturamento, atual.faturamento - base, meta, ult ? dataBR(ult) : "")}</div>
+      <div class="actions" style="margin-top:10px"><button class="btn" data-act="salvarAcum" data-v="${b.id}">Salvar ${esc(primeiroNome(b.nome))}</button>${feito ? `<button class="btn ghost" data-act="lancEdit" data-v="">Cancelar</button>` : ""}</div></div>`;
   };
+  const jaFeito = b => doMes.some(l => l.barbeiro_id === b.id && l.data === d);
+  const pend = eq.filter(b => !jaFeito(b) || S.lancEdit === b.id), feitos = eq.filter(b => jaFeito(b) && S.lancEdit !== b.id);
   const bid = S.lancBarb, hist = doMes.filter(l => l.barbeiro_id === bid).sort((a, b) => a.data < b.data ? -1 : 1);
   let ac = 0;
   const linhasHist = hist.map(l => { const t = totais([l]); ac += t.faturamento; return { l, t, ac }; }).reverse();
   return `<section class="card"><h2>Total do mês até o dia</h2>
     <span class="sm muted">Digite o valor cheio do mês de cada barbeiro (desde o dia 1) até a data escolhida. O app calcula quanto entrou desde a última atualização. Faturamento = serviços + extras + produtos + assinaturas.</span>
     <div class="fgrid" style="margin-top:12px"><label class="f">Valores até o dia<input type="date" id="l-data" data-ch="lancData" value="${d}" max="${today()}"></label></div>
-    <div class="mlist">${eq.map(card).join("")}</div>
-    <div class="actions"><button class="btn" data-act="salvarAcum">Salvar</button></div>
+    ${pend.length ? `<h3 style="margin:16px 0 0">Falta atualizar (${pend.length})</h3><div class="mlist">${pend.map(card).join("")}</div>` : `<div class="hero-dica good" style="margin-top:12px">Todos os barbeiros atualizados até ${dataBR(d)}.</div>`}
   </section>
+  ${feitos.length ? `<section class="card"><h2>Atualizados até ${dataBR(d)} (${feitos.length})</h2><div class="list" style="margin-top:6px">${feitos.map(card).join("")}</div></section>` : ""}
   <section class="card"><div class="card-head"><div><h2>Atualizações de ${esc(mesNome(mi).toLowerCase())}</h2><span class="sm muted">Toque na data para corrigir. Excluir uma atualização passa o valor dela para a próxima.</span></div>
     <select data-ch="lancBarb" aria-label="Barbeiro">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></div>
     <div class="list" style="margin-top:8px">
@@ -1448,18 +1452,16 @@ const ACOES = {
     trs.slice(1).forEach(tr => Object.entries(base).forEach(([k,v]) => tr.querySelector(`[data-k="${k}"]`).value = v));
     toast("Valores copiados. Toque em Salvar metas.");
   },
-  async salvarAcum(){
+  async salvarAcum(bid){
     const d = S.lancData; if (d > today()) return toast("Não dá para lançar um dia futuro.");
-    const doMes = await DB.lancamentos(mesIni(d), mesFim(d)), salvar = [];
-    for (const row of document.querySelectorAll(".acum")) {
-      const bid = row.dataset.b, novo = Object.fromEntries(CAMPOS_AC.map(([k]) => [k, parseNum(row.querySelector(`[data-ac="${k}"]`).value)]));
-      const r = acumular(doMes.filter(l => l.barbeiro_id === bid), d, novo);
-      if (r.erro) return toast(`${primeiroNome(nomeDe(bid))}: ${r.erro}`);
-      salvar.push(...r.lista.map(l => ({ ...l, barbeiro_id:bid })));
-    }
-    if (!salvar.length) return toast("Nada mudou.");
-    await DB.salvarLancs(salvar); toast(`Valores até ${dataBR(d)} salvos.`); render();
+    const row = document.querySelector(`.acum[data-b="${bid}"]`); if (!row) return;
+    const novo = Object.fromEntries(CAMPOS_AC.map(([k]) => [k, parseNum(row.querySelector(`[data-ac="${k}"]`).value)]));
+    const r = acumular(await DB.lancamentos(mesIni(d), mesFim(d), bid), d, novo);
+    if (r.erro) return toast(r.erro);
+    if (r.lista.length) await DB.salvarLancs(r.lista.map(l => ({ ...l, barbeiro_id:bid })));
+    S.lancEdit = null; toast(`${primeiroNome(nomeDe(bid))} atualizado até ${dataBR(d)}.`); render();
   },
+  lancEdit: v => { S.lancEdit = v || null; render(); },
   async apagarMes(){
     const bid = S.lancBarb, mi = mesIni(S.lancData), ls = await DB.lancamentos(mi, mesFim(mi), bid);
     if (!ls.length) return toast("Nada para apagar.");
