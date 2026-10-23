@@ -294,6 +294,9 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
 .sym.anim .ndl{transform-origin:467px 445px;transform-box:view-box}
 @media (prefers-reduced-motion:no-preference){.sym.anim .ndl{animation:bp-ponteiro 1.1s ease-in-out infinite alternate}}
 @keyframes bp-ponteiro{from{transform:rotate(-120deg)}to{transform:rotate(0deg)}}
+.auth{position:relative;overflow:hidden;isolation:isolate}
+.auth-3d{position:absolute;inset:-6%;width:112%;height:112%;z-index:-1;opacity:0;transition:opacity .8s ease;will-change:transform;pointer-events:none}
+.auth-3d.on{opacity:1}
 .auth-marca{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:6px}
 .auth-marca .sym{width:96px;filter:drop-shadow(0 6px 24px rgba(255,117,31,.35))}
 .auth-marca img{width:min(240px,70%);height:auto;filter:drop-shadow(0 6px 24px rgba(0,0,0,.6))}
@@ -1324,7 +1327,88 @@ document.addEventListener("input", e => {
 document.addEventListener("keydown", e => { if (e.key === "Escape") menu(false); });
 
 /* ======================= LOGIN ======================= */
+/* ======================= FUNDO 3D DO LOGIN ======================= */
+// As linhas laranja ondulam devagar e ganham profundidade (as linhas "flutuam" sobre o preto).
+// Inclinar o celular (ou mexer o mouse) muda a perspectiva. Para quando a tela de login some,
+// a aba fica em segundo plano ou a pessoa pediu menos movimento no sistema.
+let _fundo3d = null;
+function fundo3D(){
+  if (_fundo3d) { _fundo3d.parar(); _fundo3d = null; }
+  const box = document.querySelector("#authRoot .auth");
+  if (!box || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cv = document.createElement("canvas"); cv.className = "auth-3d";
+  const gl = cv.getContext("webgl", { alpha:false, antialias:false, powerPreference:"low-power", preserveDrawingBuffer:false });
+  if (!gl) return;
+  const sh = (tipo, src) => { const o = gl.createShader(tipo); gl.shaderSource(o, src); gl.compileShader(o); return o; };
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, "attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}"));
+  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, `precision mediump float;varying vec2 v;uniform sampler2D img;uniform vec2 esc,tilt;uniform float t;
+    float lum(vec2 u){vec3 c=texture2D(img,u).rgb;return dot(c,vec3(.5,.4,.1));}
+    void main(){
+      vec2 u=vec2(v.x,1.-v.y);u=(u-.5)*esc+.5;
+      vec2 o=vec2(sin(u.y*9.+t*.7)+.6*sin(u.x*5.-t*.45),cos(u.x*7.-t*.6)+.6*cos(u.y*4.+t*.4))*.0035;
+      float d=lum(u+o);
+      vec2 q=u+o+tilt*(.018+.007*d);
+      vec3 c=texture2D(img,clamp(q,.001,.999)).rgb;
+      c*=1.+.35*d*(.5+.5*sin(t*.9+u.x*6.+u.y*3.));
+      float y=v.y;float a=y>.55?mix(.55,.35,(y-.55)/.45):mix(.88,.55,y/.55);
+      gl_FragColor=vec4(c*(1.-a),1.);}`));
+  gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return;
+  gl.useProgram(pr);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const ap = gl.getAttribLocation(pr, "p"); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 2, gl.FLOAT, false, 0, 0);
+  const U = n => gl.getUniformLocation(pr, n), uEsc = U("esc"), uTilt = U("tilt"), uT = U("t");
+  let iw = 1, ih = 1, raf = 0, vivo = true, ultimo = 0, alvo = { x:0, y:0 }, at = { x:0, y:0 }, base = null, sensor = false;
+  const t0 = performance.now();
+  const medir = () => {
+    const dpr = Math.min(devicePixelRatio || 1, 1.5), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    if (!w || !h) return;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; gl.viewport(0, 0, w, h); }
+    const ri = iw / ih, rc = w / h; gl.uniform2f(uEsc, rc > ri ? 1 : rc / ri, rc > ri ? ri / rc : 1);  // "cover"
+  };
+  const quadro = agora => {
+    if (!vivo) return;
+    raf = requestAnimationFrame(quadro);
+    if (!cv.isConnected || cv.closest("[hidden]")) return parar();
+    if (document.hidden || agora - ultimo < 33) return;  // ~30 fps poupa bateria
+    ultimo = agora;
+    const t = (agora - t0) / 1000;
+    const a = sensor ? alvo : { x:alvo.x + Math.sin(t * .23) * .25, y:alvo.y + Math.cos(t * .17) * .2 };
+    at.x += (a.x - at.x) * .08; at.y += (a.y - at.y) * .08;
+    cv.style.transform = `perspective(900px) rotateX(${(-at.y * 5).toFixed(2)}deg) rotateY(${(at.x * 6).toFixed(2)}deg)`;
+    gl.uniform2f(uTilt, at.x, -at.y); gl.uniform1f(uT, t);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  };
+  const lim = v => Math.max(-1, Math.min(1, v));
+  const giro = e => {
+    if (e.beta == null) return;
+    if (!base) base = { b:e.beta, g:e.gamma };
+    sensor = true; alvo = { x:lim((e.gamma - base.g) / 25), y:lim((e.beta - base.b) / 25) };
+  };
+  const mouse = e => { if (e.pointerType !== "mouse") return; alvo = { x:lim(e.clientX / innerWidth * 2 - 1), y:lim(e.clientY / innerHeight * 2 - 1) }; };
+  const pedirSensor = () => { const D = window.DeviceOrientationEvent; if (D && typeof D.requestPermission === "function") D.requestPermission().catch(() => {}); };
+  function parar(){ vivo = false; cancelAnimationFrame(raf); removeEventListener("deviceorientation", giro); removeEventListener("pointermove", mouse); removeEventListener("resize", medir); box.removeEventListener("pointerdown", pedirSensor); }
+  const img = new Image();
+  img.onload = () => {
+    if (!vivo) return;
+    try {
+      const tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+      [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE));
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    } catch (e) { cv.remove(); return parar(); }
+    iw = img.naturalWidth; ih = img.naturalHeight; medir();
+    raf = requestAnimationFrame(quadro); setTimeout(() => cv.classList.add("on"), 60);
+  };
+  img.src = innerWidth > innerHeight ? "icons/fundo-linhas-largo.jpg" : "icons/fundo-linhas.jpg";
+  box.prepend(cv);
+  addEventListener("deviceorientation", giro); addEventListener("pointermove", mouse); addEventListener("resize", medir);
+  box.addEventListener("pointerdown", pedirSensor, { once:true });
+  _fundo3d = { parar };
+}
 function telaLogin(modo, msg){
+  setTimeout(fundo3D, 0);
   const R = $("#authRoot"); R.hidden = false; $("#app").hidden = true;
   if (DEMO) {
     const eq = demoLoad().equipe;
