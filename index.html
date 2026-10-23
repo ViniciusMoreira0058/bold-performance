@@ -427,7 +427,7 @@ const cloud = {
     const { error } = await sb.from("equipe").insert({ id:crypto.randomUUID(), nome:c.nome, email:c.email || null, papel:"barbeiro", aprovado:true, ativo:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos });
     if (error) throw new Error(/foreign key|tem_login/i.test(error.message) ? "Falta rodar o arquivo 007_cadastro_sem_login.sql no Supabase." : error.message);
   },
-  async excluirBarbeiro(id){ const { error } = await sb.from("equipe").delete().eq("id", id).eq("tem_login", false); if (error) throw error; },
+  async excluirBarbeiro(id){ const { error } = await sb.rpc("bp_excluir_barbeiro", { barbeiro:id }); if (error) throw new Error(error.code === "PGRST202" || /could not find the function/i.test(error.message) ? "Falta rodar o arquivo 012_excluir_barbeiro.sql no Supabase." : error.message); },
   async metas(){ const { data, error } = await sb.from("metas").select("*"); if (error) throw error; return data; },
   async assinDia(ini, fim){ const { data, error } = await sb.from("receita_assinaturas").select("*").gte("data", ini).lte("data", fim).order("data"); if (error) { console.warn(error); return []; } return data; },
   async salvarAssinDia(lista){ if (!lista.length) return; const { error } = await sb.from("receita_assinaturas").upsert(lista.map(x => ({ ...x, atualizado_em:new Date().toISOString() }))); if (error) throw new Error(/receita_assinaturas/.test(error.message) ? "Falta rodar o arquivo 008_receita_assinaturas.sql no Supabase." : error.message); },
@@ -1346,7 +1346,7 @@ async function pgBarbeiros(){
     <div class="row" style="gap:8px;flex-wrap:wrap">${b.papel !== "admin" ? `<label class="f" style="width:220px">E-mail${b.tem_login === false ? "" : " de login"}<input type="email" inputmode="email" autocomplete="off" data-perfil="${b.id}" data-k="email" value="${esc(b.email || "")}" placeholder="email@exemplo.com"></label>` : ""}<label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
-    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.tem_login === false ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end">Excluir</button>` : ""}</div></div>`;
+    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.papel !== "admin" ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end;color:var(--bad)">Excluir</button>` : ""}</div></div>`;
   const novos = pendentes();
   const novoCard = b => `<div class="li"><div class="who" style="min-width:0">${avatar(b)}<div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
@@ -1508,8 +1508,10 @@ const ACOES = {
     toast(`${nome} cadastrado. Já dá para lançar e importar para ele.`); render();
   },
   async excluirBarbeiro(v){
-    if (!await confirmar(`Excluir o cadastro de ${nomeDe(v)}? Os lançamentos e metas dele também serão apagados.`)) return;
-    await DB.excluirBarbeiro(v); S.equipe = await DB.equipe(); S.metas = await DB.metas(); toast("Cadastro excluído."); render();
+    const b = S.equipe.find(e => e.id === v) || {};
+    if (!await confirmar(`Excluir ${b.nome} de vez? ${b.tem_login === false ? "O cadastro" : "A conta de login, o cadastro"}, os lançamentos e as metas dele serão apagados. Não tem como desfazer. Se só quer tirar do ranking, use Desativar.`)) return;
+    await DB.excluirBarbeiro(v); if (S.ver === v) S.ver = null; if (S.lancBarb === v) S.lancBarb = null;
+    S.equipe = await DB.equipe(); S.metas = await DB.metas(); toast(`${b.nome} excluído.`); render();
   },
   async excluirConvite(v){ if (!await confirmar("Cancelar este convite?")) return; await DB.excluirConvite(v); render(); },
   copiarLink(){ const url = location.origin + location.pathname; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast("Link copiado."), () => toast("Link do app: " + url)); },
