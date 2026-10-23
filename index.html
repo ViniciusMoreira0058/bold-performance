@@ -443,8 +443,8 @@ const cloud = {
     }
     return out;
   },
-  async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw error; } },
-  async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw error; },
+  async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); } },
+  async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
 };
@@ -472,7 +472,7 @@ function gerarDemo(){
       const servicos = Math.round(at * (40 + rnd()*12));
       const qtd_extras = Math.round(at * (.18 + rnd()*.22) * ev);
       lanc.push({ barbeiro_id:b.id, data:d, atendimentos:at, servicos, extras:Math.round(qtd_extras*(28+rnd()*14)), qtd_extras,
-        assinaturas: rnd() < .27*ev ? 1 : 0, produtos: rnd() < .55 ? Math.round((25 + rnd()*90) * ev) : 0, obs:"" });
+        assinaturas: rnd() < .27*ev ? 1 : 0, produtos: rnd() < .55 ? Math.round((25 + rnd()*90) * ev) : 0, assinatura_rs: rnd() < .3*ev ? 129 : 0, obs:"" });
     });
   }
   equipe.push({ id:"b5", nome:"Pedro Alves", email:"pedro@demo", papel:"barbeiro", ativo:false, aprovado:false, comissao_servicos:50, comissao_produtos:10, ganho_desejado:0, ticket_medio:0 });
@@ -513,7 +513,7 @@ const demo = {
     const me = await demo.me(), db = demoLoad();
     return db.equipe.filter(e => e.papel === "barbeiro" && e.ativo).map(e => {
       const t = totais(db.lanc.filter(l => l.barbeiro_id === e.id && l.data >= ini && l.data <= fim));
-      return { eu:e.id === me.id, atendimentos:t.atendimentos, servicos:t.servicos, extras:t.extras, qtd_extras:t.qtd_extras, assinaturas:t.assinaturas, produtos:t.produtos, dias_lancados:t.dias,
+      return { eu:e.id === me.id, atendimentos:t.atendimentos, servicos:t.servicos, extras:t.extras, qtd_extras:t.qtd_extras, assinaturas:t.assinaturas, produtos:t.produtos, assinatura_rs:t.assinatura_rs, dias_lancados:t.dias,
         metas: db.metas.filter(m => m.barbeiro_id === e.id && m.mes >= mesIni(ini) && m.mes <= mesIni(fim)) };
     });
   },
@@ -547,6 +547,9 @@ let CFG = { nome:"Barbearia", dias_trabalho:[1,2,3,4,5,6] };
 const ehDiaUtil = s => CFG.dias_trabalho.includes(pD(s).getDay());
 const _uteisMes = {};
 // receita de assinaturas no mês: realizado e projeção pelos dias corridos (as cobranças caem todo dia)
+// com assinaturas lançadas por barbeiro, a planilha não soma de novo no faturamento da barbearia
+function assinLoja(asL, doMes, ini, fim){ return doMes.some(l => +l.assinatura_rs > 0) ? { tem:false, valor:0, proj:0, cobrancas:0 } : resumoAssin(asL, ini, fim); }
+const faltaColuna = e => /assinatura_rs/.test(e.message || "") ? new Error("Falta rodar o arquivo 009_assinatura_barbeiro.sql no Supabase.") : e;
 function resumoAssin(lista, ini, fim){
   const valor = lista.reduce((s, x) => s + (+x.valor || 0), 0), cobrancas = lista.reduce((s, x) => s + (+x.cobrancas || 0), 0);
   const ult = lista.length ? lista.map(x => String(x.data).slice(0, 10)).sort().at(-1) : null;
@@ -558,12 +561,12 @@ function uteisNoMes(m){ m = mesIni(m); if (_uteisMes[m + CFG.dias_trabalho]) ret
 function uteisEntre(a, b){ let n = 0; for (let d = a; d <= b; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return n; }
 
 function totais(lista){
-  const t = { atendimentos:0, servicos:0, extras:0, qtd_extras:0, assinaturas:0, produtos:0, dias:0 };
-  for (const l of lista) { t.atendimentos += +l.atendimentos||0; t.servicos += +l.servicos||0; t.extras += +l.extras||0; t.qtd_extras += +l.qtd_extras||0; t.assinaturas += +l.assinaturas||0; t.produtos += +l.produtos||0; t.dias++; }
+  const t = { atendimentos:0, servicos:0, extras:0, qtd_extras:0, assinaturas:0, produtos:0, assinatura_rs:0, dias:0 };
+  for (const l of lista) { t.atendimentos += +l.atendimentos||0; t.servicos += +l.servicos||0; t.extras += +l.extras||0; t.qtd_extras += +l.qtd_extras||0; t.assinaturas += +l.assinaturas||0; t.produtos += +l.produtos||0; t.assinatura_rs += +l.assinatura_rs||0; t.dias++; }
   return comDerivados(t);
 }
 function comDerivados(t){
-  t.faturamento = t.servicos + t.extras + t.produtos;
+  t.faturamento = t.servicos + t.extras + t.produtos + (t.assinatura_rs || 0);
   t.ticket = t.atendimentos ? t.faturamento / t.atendimentos : 0;
   t.extraPorAtend = t.atendimentos ? t.qtd_extras / t.atendimentos : 0;
   t.produtoPorAtend = t.atendimentos ? t.produtos / t.atendimentos : 0;
@@ -590,7 +593,7 @@ function metaNoIntervalo(metasDoBarbeiro, ini, fim){
   return r;
 }
 
-const PESOS = { faturamento:1 };  // a nota é o faturamento contra a meta; serviços, extras e produtos mostram de onde ele vem
+const PESOS = { faturamento:1 };  // a nota é o faturamento contra a meta; serviços, extras, produtos e assinaturas mostram de onde ele vem
 const COMP_NOME = { faturamento:"Faturamento", extras:"Serviços extras", assinaturas:"Assinaturas", produtos:"Produtos" };
 function nivelDe(n){ return n == null ? null : n >= 8 ? "good" : n >= 6 ? "warn" : "bad"; }
 const NIVEL_NOME = { good:"Muito bom", warn:"Médio", bad:"Ruim" };
@@ -615,7 +618,7 @@ function avaliar(lista, metasB, p){
   return { t, meta, metaCheia, corte:c, ...n, nivel:nivelDe(n.nota) };
 }
 function avaliarResumo(row, p){
-  const t = comDerivados({ atendimentos:+row.atendimentos, servicos:+row.servicos, extras:+row.extras, qtd_extras:+row.qtd_extras, assinaturas:+row.assinaturas, produtos:+row.produtos, dias:+row.dias_lancados });
+  const t = comDerivados({ atendimentos:+row.atendimentos, servicos:+row.servicos, extras:+row.extras, qtd_extras:+row.qtd_extras, assinaturas:+row.assinaturas, produtos:+row.produtos, assinatura_rs:+row.assinatura_rs || 0, dias:+row.dias_lancados });
   const metasB = (typeof row.metas === "string" ? JSON.parse(row.metas) : row.metas) || [];
   const c = corte(p, true), meta = metaNoIntervalo(metasB, p.ini, c);
   const n = c ? nota(t, meta) : { nota:null };
@@ -624,7 +627,7 @@ function avaliarResumo(row, p){
 function mediaEquipe(avals){
   const ativos = avals.filter(a => a.t.dias > 0);
   if (!ativos.length) return null;
-  const m = {}; ["faturamento","servicos","extras","qtd_extras","assinaturas","produtos","atendimentos","dias"].forEach(k => m[k] = ativos.reduce((s,a) => s + a.t[k], 0) / ativos.length);
+  const m = {}; ["faturamento","servicos","extras","qtd_extras","assinaturas","produtos","assinatura_rs","atendimentos","dias"].forEach(k => m[k] = ativos.reduce((s,a) => s + a.t[k], 0) / ativos.length);
   comDerivados(m);
   const ns = ativos.filter(a => a.nota != null);
   m.nota = ns.length ? Math.round(ns.reduce((s,a) => s + a.nota, 0) / ns.length * 10) / 10 : null;
@@ -813,7 +816,8 @@ async function pgPainel(){
        ["Faturamento", money0(av.t.faturamento), money0(media.faturamento), av.meta.faturamento ? money0(av.meta.faturamento) : "—"],
        ["Serviços", money0(av.t.servicos), money0(media.servicos), "—"],
        ["Serviços extras", money0(av.t.extras), money0(media.extras), "—"],
-       ["Produtos", money0(av.t.produtos), money0(media.produtos), "—"]].map(r => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join("")}
+       ["Produtos", money0(av.t.produtos), money0(media.produtos), "—"],
+       ["Assinaturas", money0(av.t.assinatura_rs), money0(media.assinatura_rs), "—"]].map(r => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join("")}
     </tbody></table></div><span class="xs muted">A meta mostrada é proporcional aos dias de trabalho do período${av.corte && av.corte < p.fim ? ` até ${dataBR(av.corte)}` : ""}.</span></section>` : "";
 
   return `${periodoBar()}
@@ -831,6 +835,7 @@ async function pgPainel(){
     ${kpi("Serviços", money0(av.t.servicos), av.t.servicos, 0, media && media.servicos, money0, `${pctTxt(parte(av.t.servicos, av.t.faturamento))} do faturamento`)}
     ${kpi("Serviços extras", money0(av.t.extras), av.t.extras, 0, media && media.extras, money0, `${pctTxt(parte(av.t.extras, av.t.faturamento))} do faturamento`)}
     ${kpi("Produtos", money0(av.t.produtos), av.t.produtos, 0, media && media.produtos, money0, `${pctTxt(parte(av.t.produtos, av.t.faturamento))} do faturamento`)}
+    ${kpi("Assinaturas", money0(av.t.assinatura_rs), av.t.assinatura_rs, 0, media && media.assinatura_rs, money0, `${pctTxt(parte(av.t.assinatura_rs, av.t.faturamento))} do faturamento`)}
   </div>
   ${dicas.length ? `<section class="card"><h2>Dicas para o período</h2><span class="sm muted">${nivel === "good" ? "Para manter e melhorar" : nivel === "warn" ? "Para sair do médio" : "Para virar o jogo"}</span>
     <div class="dicas">${dicas.map((d,i) => `<div class="dica"><i>${i+1}</i><div><b>${esc(d.t)}</b><span>${esc(d.s)}</span></div></div>`).join("")}</div></section>` : ""}
@@ -898,7 +903,6 @@ async function pgDashboard(){
   const antIni = addM(pm.ini, -1), antMesmoDia = (() => { const f = mesFim(antIni); const d = addD(antIni, diaNum - 1); return d > f ? f : d; })();
   const ini = ps.ini < pm.ini ? ps.ini : pm.ini;
   const [lanc, asL] = await Promise.all([DB.lancamentos(ini < antIni ? ini : antIni, pm.fim), DB.assinDia(pm.ini, pm.fim)]);
-  const AS = resumoAssin(asL, pm.ini, pm.fim);
   const doMes = lanc.filter(l => l.data >= pm.ini && l.data <= pm.fim), daSemana = lanc.filter(l => l.data >= ps.ini && l.data <= ps.fim);
   const doAnt = lanc.filter(l => l.data >= antIni && l.data <= antMesmoDia);
   const eq = ativos(), ids = new Set(eq.map(b => b.id)), dosAtivos = l => ids.has(l.barbeiro_id);
@@ -912,6 +916,7 @@ async function pgDashboard(){
   const linhasS = eq.map(b => ({ b, av:avaliar(daSemana.filter(l => l.barbeiro_id === b.id), metasDe(b.id), ps) }));
   const somaMeta = ls => ls.reduce((s, l) => { for (const k of ["faturamento","extras","assinaturas","produtos"]) { s[k] += l.av.meta[k]; s.cheia[k] += l.av.metaCheia[k]; } return s; }, { faturamento:0, extras:0, assinaturas:0, produtos:0, cheia:{ faturamento:0, extras:0, assinaturas:0, produtos:0 } });
   const totM = totais(doMes.filter(dosAtivos)), metaM = somaMeta(linhasM), notaM = nota(totM, metaM).nota;
+  const AS = assinLoja(asL, doMes, pm.ini, pm.fim);
   const totS = totais(daSemana.filter(dosAtivos)), notaS = nota(totS, somaMeta(linhasS)).nota;
   const totAnt = totais(doAnt.filter(dosAtivos));
   const varAnt = totAnt.faturamento ? totM.faturamento / totAnt.faturamento - 1 : null;
@@ -955,12 +960,13 @@ async function pgDashboard(){
     ${tile("Serviços", money0(totM.servicos), `${pctTxt(parte(totM.servicos, totM.faturamento))} do faturamento`)}
     ${tile("Serviços extras", money0(totM.extras), `${pctTxt(parte(totM.extras, totM.faturamento))} do faturamento`)}
     ${tile("Produtos", money0(totM.produtos), `${pctTxt(parte(totM.produtos, totM.faturamento))} do faturamento`)}
+    ${tile("Assinaturas", money0(totM.assinatura_rs), `${pctTxt(parte(totM.assinatura_rs, totM.faturamento))} do faturamento`)}
     ${AS.tem ? tile("Receita de assinaturas", money0(AS.valor), `${int(AS.cobrancas)} cobranças · projeção ${money0(AS.proj)}${mLoja ? " · já soma no faturamento" : ""}`) : ""}
   </div>
 
   <div class="grid g2">
     <section class="card"><div class="card-head"><div><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))} · o que entrou no dia</span></div><button class="arrow" data-tab="lancar" aria-label="Lançamentos">↗</button></div>
-      ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Serviços</span><div class="num">${money0(totDia.servicos)}</div></div><div><span class="lbl">Extras</span><div class="num">${money0(totDia.extras)}</div></div><div><span class="lbl">Produtos</span><div class="num">${money0(totDia.produtos)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
+      ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Serviços</span><div class="num">${money0(totDia.servicos)}</div></div><div><span class="lbl">Extras</span><div class="num">${money0(totDia.extras)}</div></div><div><span class="lbl">Produtos</span><div class="num">${money0(totDia.produtos)}</div></div><div><span class="lbl">Assinaturas</span><div class="num">${money0(totDia.assinatura_rs)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
       ${faltamLancar.length ? `<div class="hero-dica warn">Falta atualizar: ${faltamLancar.map(b => esc(primeiroNome(b.nome))).join(", ")}.</div>` : ehDiaUtil(diaRef) ? `<div class="hero-dica good">Todos atualizados.</div>` : `<p class="sm muted" style="margin:8px 0 0">Dia de folga.</p>`}
     </section>
     <section class="card"><div class="card-head"><h2>Destaques do mês</h2><button class="arrow" data-tab="equipe" aria-label="Ver equipe">↗</button></div><div class="list" style="margin-top:6px">
@@ -974,7 +980,7 @@ async function pgDashboard(){
   <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
     <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div class="who" style="min-width:0">${avatar(b, "av-sm")}<div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
       <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
-  ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm, mLoja, mLoja ? asL : []))}`;
+  ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm, mLoja, mLoja && AS.tem ? asL : []))}`;
 }
 function graficoAcumulado(lista, linhas, p, mLoja, assin){
   const el = document.getElementById("chAcum"); if (!el || !window.Chart) return;
@@ -984,7 +990,7 @@ function graficoAcumulado(lista, linhas, p, mLoja, assin){
     labels.push(dataBR(d));
     am += mLoja ? (ehDiaUtil(d) ? mLoja / uteisNoMes(p.ini) : 0) : linhas.reduce((s, l) => s + metaNoIntervalo(metasDe(l.b.id), d, d).faturamento, 0);
     meta.push(Math.round(am));
-    if (d <= h) { ac += lista.filter(l => l.data === d).reduce((s, l) => s + (+l.servicos||0) + (+l.extras||0) + (+l.produtos||0), 0) + (assin || []).filter(x => String(x.data).slice(0, 10) === d).reduce((s, x) => s + (+x.valor || 0), 0); real.push(Math.round(ac)); } else real.push(null);
+    if (d <= h) { ac += lista.filter(l => l.data === d).reduce((s, l) => s + (+l.servicos||0) + (+l.extras||0) + (+l.produtos||0) + (+l.assinatura_rs||0), 0) + (assin || []).filter(x => String(x.data).slice(0, 10) === d).reduce((s, x) => s + (+x.valor || 0), 0); real.push(Math.round(ac)); } else real.push(null);
   }
   charts.push(new Chart(el, {
     type:"line",
@@ -1026,14 +1032,14 @@ async function pgEquipe(){
     </div></div></section>
   <div class="kpis">
     ${k("Faturamento da equipe", tot.faturamento, metaTot.faturamento, money0)}
-    ${[["Serviços", tot.servicos], ["Serviços extras", tot.extras], ["Produtos", tot.produtos]].map(([r, v]) => `<div class="kpi"><span class="lbl">${r}</span><span class="num">${money0(v)}</span><div class="meta"><span>${pctTxt(parte(v, tot.faturamento))} do faturamento</span></div></div>`).join("")}
+    ${[["Serviços", tot.servicos], ["Serviços extras", tot.extras], ["Produtos", tot.produtos], ["Assinaturas", tot.assinatura_rs]].map(([r, v]) => `<div class="kpi"><span class="lbl">${r}</span><span class="num">${money0(v)}</span><div class="meta"><span>${pctTxt(parte(v, tot.faturamento))} do faturamento</span></div></div>`).join("")}
   </div>
   <section class="card"><div class="row"><h2>Ranking do período</h2><span class="xs muted">Toque em um barbeiro para abrir o painel</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Barbeiro</th><th>Nota</th><th>Faturamento</th><th>% meta</th><th>Serviços</th><th>Extras</th><th>Produtos</th></tr></thead><tbody>
+    <div class="tbl-wrap"><table><thead><tr><th>Barbeiro</th><th>Nota</th><th>Faturamento</th><th>% meta</th><th>Serviços</th><th>Extras</th><th>Produtos</th><th>Assinaturas</th></tr></thead><tbody>
     ${linhas.map(({ b, av }) => `<tr class="click" data-act="abrir" data-v="${b.id}"><td><span class="who">${avatar(b, "av-sm")}<b>${esc(b.nome)}</b></span></td><td><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></td>
       <td>${money0(av.t.faturamento)}</td><td class="${av.meta.faturamento ? nivelDe(av.t.faturamento/av.meta.faturamento*9) : "muted"}">${av.meta.faturamento ? pctTxt(av.t.faturamento/av.meta.faturamento) : "—"}</td>
-      <td>${money0(av.t.servicos)}</td><td>${money0(av.t.extras)}</td><td>${money0(av.t.produtos)}</td></tr>`).join("")}
-    ${media ? `<tr class="avg"><td>Média</td><td>${media.nota == null ? "—" : dec1(media.nota)}</td><td>${money0(media.faturamento)}</td><td></td><td>${money0(media.servicos)}</td><td>${money0(media.extras)}</td><td>${money0(media.produtos)}</td></tr>` : ""}
+      <td>${money0(av.t.servicos)}</td><td>${money0(av.t.extras)}</td><td>${money0(av.t.produtos)}</td><td>${money0(av.t.assinatura_rs)}</td></tr>`).join("")}
+    ${media ? `<tr class="avg"><td>Média</td><td>${media.nota == null ? "—" : dec1(media.nota)}</td><td>${money0(media.faturamento)}</td><td></td><td>${money0(media.servicos)}</td><td>${money0(media.extras)}</td><td>${money0(media.produtos)}</td><td>${money0(media.assinatura_rs)}</td></tr>` : ""}
     </tbody></table></div></section>
   ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Faturamento por barbeiro</h2><span class="xs muted">barra = realizado · traço = meta do período</span></div><div class="chart-box"><canvas id="chEq"></canvas></div></section>` : ""}
   ${posRender(() => p.tipo !== "dia" && graficoEquipe(linhas))}`;
@@ -1063,13 +1069,13 @@ async function pgMetas(){
   const u = uteisNoMes(m);
   return `<div class="pnav"><button class="icon-btn" data-act="metaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="metaMes" data-v="1" aria-label="Próximo mês">›</button></div>
   <section class="card"><div class="row"><h2>Metas de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}</h2><span class="sm muted">${u} dias de trabalho no mês</span></div>
-    <span class="sm muted">A meta é de faturamento no mês: serviços + extras + produtos. A performance de cada barbeiro é medida em cima dela.</span>
+    <span class="sm muted">A meta é de faturamento no mês: serviços + extras + produtos + assinaturas. A performance de cada barbeiro é medida em cima dela.</span>
     ${lista.length ? `<div class="mlist">${lista.map(linha).join("")}</div>
     <div class="actions"><button class="btn" data-act="salvarMetas">Salvar metas</button><button class="btn sec" data-act="copiarMetas">Copiar do mês anterior</button><button class="btn ghost" data-act="igualarMetas">Usar a 1ª linha para todos</button></div>`
     : `<p class="empty">Nenhum barbeiro ativo. Cadastre em Barbeiros.</p>`}
   </section>
   <section class="card"><h2>Como a nota é calculada</h2>
-    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota é o faturamento (serviços + extras + produtos) dividido pela meta até aquele dia: bater 100% dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p></section>`;
+    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota é o faturamento (serviços + extras + produtos + assinaturas) dividido pela meta até aquele dia: bater 100% dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p></section>`;
 }
 function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:0, assinaturas:0, produtos:0 }; }); }
 
@@ -1095,7 +1101,7 @@ async function pgLoja(){
   const m = S.lojaMes, fim = mesFim(m), h = today(), eq = ativos();
   $("#psub").textContent = "Meta geral do mês, quanto cada barbeiro precisa faturar e quem está acima ou abaixo da média";
   const [doMes, hist, asL] = await Promise.all([DB.lancamentos(m, fim), DB.lancamentos(addD(m, -90), addD(m, -1)), DB.assinDia(m, fim)]);
-  const AS = resumoAssin(asL, m, fim);
+  const AS = assinLoja(asL, doMes, m, fim);
   const mL = metaLoja(m), u = uteisNoMes(m);
   const corte = m > h ? null : fim < h ? fim : (doMes.some(l => l.data === h) ? h : addD(h, -1));
   const feitos = corte && corte >= m ? uteisEntre(m, corte) : 0, restantes = Math.max(0, u - feitos);
@@ -1124,7 +1130,7 @@ async function pgLoja(){
       <p class="xs muted" style="margin:6px 0 0">Grava esses valores como meta de faturamento de cada barbeiro.</p></section>` : "";
   // comparação: média dos barbeiros com lançamento no mês
   const comDados = linhas.filter(l => l.t.dias > 0);
-  const KS = [["faturamento","Faturamento",money0],["porDia","Fat. por dia",money0],["servicos","Serviços",money0],["extras","Extras",money0],["produtos","Produtos",money0]];
+  const KS = [["faturamento","Faturamento",money0],["porDia","Fat. por dia",money0],["servicos","Serviços",money0],["extras","Extras",money0],["produtos","Produtos",money0],["assinatura_rs","Assinaturas",money0]];
   const diasPassados = Math.max(1, uteisEntre(m, fim < h ? fim : h));
   comDados.forEach(l => l.t.porDia = l.t.faturamento / diasPassados);
   const media = Object.fromEntries(KS.map(([k]) => [k, comDados.length ? comDados.reduce((s, l) => s + (l.t[k] || 0), 0) / comDados.length : 0]));
@@ -1190,7 +1196,7 @@ function lerCashBarber(txt){
 }
 function cardImportar(){
   const I = S.imp;
-  const topo = `<div class="card-head"><div><h2>Receita de assinaturas</h2><span class="sm muted">Envie o relatório do CashBarber (CSV) para somar as cobranças de assinatura no faturamento da barbearia. Os valores dos barbeiros você lança acima.</span></div></div>
+  const topo = `<div class="card-head"><div><h2>Receita de assinaturas</h2><span class="sm muted">Opcional: envie o relatório do CashBarber (CSV) para ver as cobranças de assinatura da barbearia. Se você lançar as assinaturas de cada barbeiro acima, elas valem no lugar da planilha, para não contar duas vezes.</span></div></div>
     <label class="btn sec" style="margin-top:12px;display:inline-flex;cursor:pointer">Escolher arquivo<input type="file" accept=".csv,text/csv" data-ch="importar" hidden></label>`;
   if (!I) return `<section class="card">${topo}</section>`;
   const A = I.dados.assinDias;
@@ -1200,9 +1206,9 @@ function cardImportar(){
   </section>`;
 }
 // Lançamentos guardam o que entrou em cada dia; o admin digita o total do mês até a data e o app calcula a diferença
-const CAMPOS_AC = [["servicos","Serviços"],["extras","Serviços extras"],["produtos","Produtos"]];
+const CAMPOS_AC = [["servicos","Serviços"],["extras","Serviços extras"],["produtos","Produtos"],["assinatura_rs","Assinaturas"]];
 const r2 = v => Math.round(v * 100) / 100;
-const linhaLanc = l => ({ data:l.data, atendimentos:+l.atendimentos || 0, qtd_extras:+l.qtd_extras || 0, assinaturas:+l.assinaturas || 0, obs:l.obs || null, servicos:+l.servicos || 0, extras:+l.extras || 0, produtos:+l.produtos || 0 });
+const linhaLanc = l => ({ data:l.data, atendimentos:+l.atendimentos || 0, qtd_extras:+l.qtd_extras || 0, assinaturas:+l.assinaturas || 0, obs:l.obs || null, servicos:+l.servicos || 0, extras:+l.extras || 0, produtos:+l.produtos || 0, assinatura_rs:+l.assinatura_rs || 0 });
 // ls = lançamentos do barbeiro no mês; novo = total do mês até o dia d. Devolve os dias a gravar (d e, se houver, a próxima atualização)
 function acumular(ls, d, novo){
   const antes = ls.filter(l => l.data < d), ult = antes.map(l => l.data).sort().at(-1);
@@ -1242,7 +1248,7 @@ async function pgLancar(){
   let ac = 0;
   const linhasHist = hist.map(l => { const t = totais([l]); ac += t.faturamento; return { l, t, ac }; }).reverse();
   return `<section class="card"><h2>Total do mês até o dia</h2>
-    <span class="sm muted">Digite o valor cheio do mês de cada barbeiro (desde o dia 1) até a data escolhida. O app calcula quanto entrou desde a última atualização. Faturamento = serviços + extras + produtos.</span>
+    <span class="sm muted">Digite o valor cheio do mês de cada barbeiro (desde o dia 1) até a data escolhida. O app calcula quanto entrou desde a última atualização. Faturamento = serviços + extras + produtos + assinaturas.</span>
     <div class="fgrid" style="margin-top:12px"><label class="f">Valores até o dia<input type="date" id="l-data" data-ch="lancData" value="${d}" max="${today()}"></label></div>
     <div class="mlist">${eq.map(card).join("")}</div>
     <div class="actions"><button class="btn" data-act="salvarAcum">Salvar</button></div>
@@ -1250,7 +1256,7 @@ async function pgLancar(){
   <section class="card"><div class="card-head"><div><h2>Atualizações de ${esc(mesNome(mi).toLowerCase())}</h2><span class="sm muted">Toque na data para corrigir. Excluir uma atualização passa o valor dela para a próxima.</span></div>
     <select data-ch="lancBarb" aria-label="Barbeiro">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></div>
     <div class="list" style="margin-top:8px">
-    ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod.)</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
+    ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod. · ${money0(t.assinatura_rs)} assin.)</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
   </div></section>
   ${cardImportar()}`;
 }
@@ -1302,8 +1308,8 @@ function calcOut(ganho, taxa, ticket, u, m){
 async function pgHistorico(){
   const h = today(), lista = (await DB.lancamentos(addD(h, -60), h, S.me.id)).reverse();
   $("#psub").textContent = "Seus resultados dos últimos 60 dias, lançados pelo admin";
-  return `<section class="card"><div class="tbl-wrap"><table><thead><tr><th>Dia</th><th>Serviços</th><th>Extras</th><th>Produtos</th><th>No dia</th><th>No mês</th></tr></thead><tbody>
-    ${lista.map(l => { const t = totais([l]), ac = totais(lista.filter(y => y.data <= l.data && y.data >= mesIni(l.data))).faturamento; return `<tr><td>${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</td><td>${money0(t.servicos)}</td><td>${money0(t.extras)}</td><td>${money0(t.produtos)}</td><td>${money0(t.faturamento)}</td><td><b>${money0(ac)}</b></td></tr>`; }).join("") || `<tr><td colspan="6" class="muted">O admin ainda não lançou nenhum dia seu.</td></tr>`}
+  return `<section class="card"><div class="tbl-wrap"><table><thead><tr><th>Dia</th><th>Serviços</th><th>Extras</th><th>Produtos</th><th>Assin.</th><th>No dia</th><th>No mês</th></tr></thead><tbody>
+    ${lista.map(l => { const t = totais([l]), ac = totais(lista.filter(y => y.data <= l.data && y.data >= mesIni(l.data))).faturamento; return `<tr><td>${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</td><td>${money0(t.servicos)}</td><td>${money0(t.extras)}</td><td>${money0(t.produtos)}</td><td>${money0(t.assinatura_rs)}</td><td>${money0(t.faturamento)}</td><td><b>${money0(ac)}</b></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">O admin ainda não lançou nenhum dia seu.</td></tr>`}
   </tbody></table></div></section>`;
 }
 
@@ -1527,7 +1533,7 @@ async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.eq
 // Lançamentos: soma do mês e quanto entrou desde a última atualização, enquanto digita
 document.addEventListener("input", e => {
   const row = e.target.closest(".acum"); if (!row) return;
-  const v = k => parseNum(row.querySelector(`[data-ac="${k}"]`).value), tot = v("servicos") + v("extras") + v("produtos"), dif = tot - +row.dataset.base, meta = +row.dataset.meta;
+  const v = k => parseNum(row.querySelector(`[data-ac="${k}"]`).value), tot = CAMPOS_AC.reduce((s, [k]) => s + v(k), 0), dif = tot - +row.dataset.base, meta = +row.dataset.meta;
   row.querySelector(".acum-tot").innerHTML = acumTxt(tot, dif, meta, row.dataset.ult);
 });
 document.addEventListener("change", async e => {
