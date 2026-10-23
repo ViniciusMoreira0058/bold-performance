@@ -413,6 +413,7 @@ const cloud = {
   async salvarConfig(c){ const { error } = await sb.from("barbearia_config").update({ nome:c.nome, dias_trabalho:c.dias_trabalho, atualizado_em:new Date().toISOString() }).eq("id", 1); if (error) throw error; },
   async equipe(){ const { data, error } = await sb.from("equipe").select("*").order("nome"); if (error) throw error; return data; },
   async salvarPerfil(id, campos){ const { error } = await sb.from("equipe").update(campos).eq("id", id); if (error) throw error; },
+  async trocarEmail(id, email){ const { error } = await sb.rpc("bp_trocar_email", { barbeiro:id, novo:email }); if (error) throw new Error(error.code === "PGRST202" || /could not find the function/i.test(error.message) ? "Falta rodar o arquivo 011_trocar_email.sql no Supabase." : error.message); },
   async salvarFoto(id, blob){
     const path = `${id}.jpg`, st = sb.storage.from("bp-avatares");
     const { error } = await st.upload(path, blob, { upsert:true, contentType:"image/jpeg", cacheControl:"3600" });
@@ -487,6 +488,7 @@ const demo = {
   async salvarConfig(c){ demoLoad().config = { nome:c.nome, dias_trabalho:c.dias_trabalho }; demoSave(); },
   async equipe(){ const me = await demo.me(); const all = demoLoad().equipe; return me.papel === "admin" ? all.map(e => ({...e})) : all.filter(e => e.id === me.id).map(e => ({...e})); },
   async salvarPerfil(id, campos){ Object.assign(demoLoad().equipe.find(e => e.id === id), campos); demoSave(); },
+  async trocarEmail(id, email){ Object.assign(demoLoad().equipe.find(e => e.id === id), { email }); demoSave(); },
   async salvarFoto(id, blob){ return await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); }); },
   async convites(){ return demoLoad().convites.slice(); },
   async salvarConvite(c){
@@ -1341,7 +1343,7 @@ async function pgBarbeiros(){
   const pend = S.convites.filter(c => !S.equipe.some(e => (e.email || "").toLowerCase() === c.email.toLowerCase()));
   $("#psub").textContent = "Contas da equipe, comissões e convites";
   const card = b => `<div class="li"><div class="who" style="min-width:0"><label class="av-edit" title="Trocar foto">${avatar(b)}<input type="file" accept="image/*" data-ch="foto" data-id="${b.id}" aria-label="Trocar foto de ${esc(b.nome)}"></label><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")} ${b.tem_login === false ? pill("warn", "sem login") : ""}<div class="xs muted">${b.tem_login === false ? (b.email ? `Liga sozinho quando criar a conta com ${esc(b.email)}` : "Sem e-mail: preencha para ele conseguir entrar") : esc(b.email || "")}</div></div></div>
-    <div class="row" style="gap:8px;flex-wrap:wrap">${b.tem_login === false ? `<label class="f" style="width:220px">E-mail do barbeiro<input type="email" inputmode="email" autocomplete="off" data-perfil="${b.id}" data-k="email" value="${esc(b.email || "")}" placeholder="email@exemplo.com"></label>` : ""}<label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
+    <div class="row" style="gap:8px;flex-wrap:wrap">${b.papel !== "admin" ? `<label class="f" style="width:220px">E-mail${b.tem_login === false ? "" : " de login"}<input type="email" inputmode="email" autocomplete="off" data-perfil="${b.id}" data-k="email" value="${esc(b.email || "")}" placeholder="email@exemplo.com"></label>` : ""}<label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
     <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.tem_login === false ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end">Excluir</button>` : ""}</div></div>`;
@@ -1514,7 +1516,20 @@ const ACOES = {
   async salvarPerfil(v){
     const g = k => document.querySelector(`[data-perfil="${v}"][data-k="${k}"]`).value;
     const em = document.querySelector(`[data-perfil="${v}"][data-k="email"]`), campos = { comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) };
-    if (em) { const e = em.value.trim().toLowerCase(); if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("Esse e-mail não parece válido."); campos.email = e || null; }
+    const b = S.equipe.find(e => e.id === v) || {};
+    if (em) {
+      const e = em.value.trim().toLowerCase();
+      if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("Esse e-mail não parece válido.");
+      if (e !== (b.email || "").toLowerCase()) {
+        if (e && S.equipe.some(x => x.id !== v && (x.email || "").toLowerCase() === e)) return toast("Já existe alguém da equipe com esse e-mail.");
+        if (b.tem_login === false) campos.email = e || null;  // sem login: só o cadastro
+        else {
+          if (!e) return toast("Quem já tem login precisa de um e-mail.");
+          if (!await confirmar(`Trocar o login de ${b.nome} para ${e}? A senha continua a mesma; ele passa a entrar com o e-mail novo.`)) return;
+          await DB.trocarEmail(v, e);
+        }
+      }
+    }
     await DB.salvarPerfil(v, campos);
     S.equipe = await DB.equipe(); toast("Salvo.");
   },
