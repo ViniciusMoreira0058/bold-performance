@@ -827,6 +827,7 @@ async function pgPainel(){
         ${av.t.dias ? pill("n", `${av.t.dias} dia${av.t.dias > 1 ? "s" : ""} lançado${av.t.dias > 1 ? "s" : ""}`) : pill("bad", "Nenhum lançamento no período")}
         ${pill("n", `Ganho estimado ${money0(ganho)}`)}</div>
     </div></div></section>
+  ${S.me.papel === "admin" ? cardEditarMeta(perfil) : ""}
   <div class="kpis">
     ${kpi("Faturamento", money0(av.t.faturamento), av.t.faturamento, av.meta.faturamento, media && media.faturamento, money0)}
     ${kpi("Serviços extras", money0(av.t.extras), av.t.extras, av.meta.extras, media && media.extras, money0)}
@@ -1084,6 +1085,21 @@ async function pgMetas(){
 function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")) }; }); }
 
 /* ======================= PÁGINA: LANÇAR DIA ======================= */
+// admin: meta do mês do barbeiro editada no próprio painel; ao salvar, nota, ponteiro e números recalculam
+function cardEditarMeta(b){
+  const m = mesIni(S.per.ref > today() ? today() : S.per.ref), x = metasDe(b.id).find(y => String(y.mes).slice(0,10) === m) || {};
+  const tit = `Meta de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}`;
+  if (S.editMeta !== b.id) {
+    const it = (r, v) => `<div><span class="lbl">${r}</span><div class="num" style="font-size:18px">${v}</div></div>`;
+    return `<section class="card"><div class="card-head"><h2>${tit}</h2><button class="btn sec sm" data-act="editarMeta" data-v="${b.id}">Editar meta</button></div>
+      <div class="calc-out" style="margin-top:10px">${it("Faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Extras", +x.extras ? money0(x.extras) : "—")}${it("Assinaturas", +x.assinaturas ? int(x.assinaturas) : "—")}${it("Produtos", +x.produtos ? money0(x.produtos) : "—")}${it("Quer ganhar", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}</div></section>`;
+  }
+  const f = (k, r, v, modo) => `<label class="f">${r}<input data-em="${k}" inputmode="${modo || "decimal"}" value="${modo ? (v || "") : numIn(v)}" placeholder="0"></label>`;
+  return `<section class="card" style="border-color:var(--accent)"><h2>${tit} · ${esc(primeiroNome(b.nome))}</h2><span class="sm muted">Ao salvar, a nota, o ponteiro e os números deste painel já recalculam.</span>
+    <div class="fgrid" style="margin-top:12px">${f("faturamento", "Faturamento R$", x.faturamento)}${f("extras", "Extras R$", x.extras)}${f("assinaturas", "Assinaturas", x.assinaturas, "numeric")}${f("produtos", "Produtos R$", x.produtos)}${f("ganho", "Quanto deseja ganhar R$", b.ganho_desejado)}</div>
+    <div class="actions"><button class="btn" data-act="salvarMetaBarb" data-v="${b.id}">Salvar meta</button><button class="btn ghost" data-act="editarMeta" data-v="">Cancelar</button></div></section>`;
+}
+
 /* ======================= PÁGINA: META DA BARBEARIA (ADMIN) ======================= */
 async function pgLoja(){
   if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }
@@ -1399,6 +1415,14 @@ const ACOES = {
   metaMes: v => { S.metaMes = addM(S.metaMes, +v); render(); },
   impCancelar(){ S.imp = null; render(); },
   lojaDiv: v => { S.lojaDiv = v; render(); },
+  editarMeta: v => { S.editMeta = v || null; render(); },
+  async salvarMetaBarb(v){
+    const g = k => document.querySelector(`[data-em="${k}"]`).value, m = mesIni(S.per.ref > today() ? today() : S.per.ref);
+    await DB.salvarMetas([{ barbeiro_id:v, mes:m, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")) }]);
+    const ganho = parseNum(g("ganho")), b = S.equipe.find(e => e.id === v);
+    if (b && ganho !== (+b.ganho_desejado || 0)) { await DB.salvarPerfil(v, { ganho_desejado:ganho }); b.ganho_desejado = ganho; }
+    S.metas = await DB.metas(); S.editMeta = null; toast("Meta salva. Painel atualizado."); render();
+  },
   async aplicarDivisao(){
     const m = S.lojaMes, mL = metaLoja(m); if (!mL) return toast("Salve a meta da barbearia primeiro.");
     const [hist, asL] = await Promise.all([DB.lancamentos(addD(m, -90), addD(m, -1)), DB.assinDia(m, mesFim(m))]), eq = ativos(), mBarb = Math.max(0, mL - resumoAssin(asL, m, mesFim(m)).proj);
