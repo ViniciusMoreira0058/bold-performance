@@ -66,6 +66,12 @@ main{display:flex;flex-direction:column;gap:16px;padding:6px max(16px,env(safe-a
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#000;border-top:1px solid #1c1c1c;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
 .bottom button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;color:#8a8a8a;font:600 11px var(--body);padding:6px 2px;border-radius:8px;cursor:pointer;min-width:0}
 .bottom button[aria-current="page"]{color:var(--accent)}
+.bottom{justify-content:center}
+.bottom .bnav-marca{flex:0 0 auto;gap:3px;padding:6px 26px 4px;color:var(--accent)}
+.bottom .bnav-marca .sym{width:46px;height:auto;filter:drop-shadow(0 2px 10px rgba(255,117,31,.35))}
+.bottom .bnav-marca span{font:600 9.5px var(--body);letter-spacing:.42em;text-transform:uppercase;margin-right:-.42em;color:#d8d8d8}
+.bottom .bnav-marca[aria-current="page"] span{color:var(--accent)}
+.bottom .bnav-marca:active .sym{transform:scale(.94)}
 .mlogo img{height:22px;width:auto;display:block;margin-bottom:2px}
 @media (min-width:960px){
   .app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh;padding-bottom:0}
@@ -687,9 +693,9 @@ const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : ABAS_BARB;
 function renderNav(){
   const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
   $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
-  const curtos = S.me.papel === "admin" ? ["dashboard","equipe","metas","barbeiros"] : ["painel","calc","historico","ajustes"];
-  const nomesCurtos = { ajustes:"Ajustes", dashboard:"Início", equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
-  $("#bottomnav").innerHTML = curtos.map(k => `<button data-tab="${k}" ${S.tab === k || (k === "equipe" && S.tab === "painel" && S.me.papel === "admin") ? 'aria-current="page"' : ""}>${ICONE[k]}${nomesCurtos[k]}</button>`).join("") + `<button data-act="menu" data-v="1">${'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'}Mais</button>`;
+  // rodapé: só a marca (velocímetro + PERFORMANCE), que leva direto aos resultados; o resto fica no menu ☰
+  const casa = S.me.papel === "admin" ? "dashboard" : "painel", naCasa = S.tab === casa && !(S.me.papel === "admin" && S.ver);
+  $("#bottomnav").innerHTML = `<button class="bnav-marca" data-tab="${casa}" ${naCasa ? 'aria-current="page"' : ""} aria-label="${S.me.papel === "admin" ? "Ir para o Dashboard" : "Ir para o meu painel"}">${SIMBOLO()}<span>Performance</span></button>`;
   $("#topav").innerHTML = avatar(S.me);
   $("#sideuser").innerHTML = `${avatar(S.me)}<div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
 }
