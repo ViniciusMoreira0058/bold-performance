@@ -763,32 +763,13 @@ function gaugeSVG(n){
   </svg>`;
 }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
-// velocímetro da meta: arco preenchido até o % faturado, marca de onde deveria estar hoje, "falta" no centro
-function cardFalta(titulo, real, meta, esperado, restantes, extra){
-  const r = meta ? real / meta : 0, f = Math.max(0, Math.min(1, r)), falta = Math.max(0, meta - real), bateu = real >= meta && meta > 0;
-  const cx = 130, cy = 128, R = 100, pt = a => [(cx + R * Math.cos(a)).toFixed(1), (cy - R * Math.sin(a)).toFixed(1)];
-  const arco = fr => { const [x, y] = pt(Math.PI * (1 - fr)); return `M${cx - R},${cy} A${R},${R} 0 0 1 ${x},${y}`; };
-  const q = esperado ? r / esperado : r, nv = bateu || q >= .95 ? "good" : q >= .8 ? "warn" : "bad";
-  const cor = { good:"var(--good)", warn:"var(--warn)", bad:"var(--bad)" }[nv];
-  const ae = Math.PI * (1 - Math.max(0, Math.min(1, esperado || 0))), mk = [[R - 16, R + 16]].map(([a, b]) => [cx + a*Math.cos(ae), cy - a*Math.sin(ae), cx + b*Math.cos(ae), cy - b*Math.sin(ae)].map(v => v.toFixed(1)))[0];
-  const an = Math.PI * (1 - f), [nx, ny] = [cx + (R - 30) * Math.cos(an), cy - (R - 30) * Math.sin(an)];
-  const deveria = esperado ? meta * esperado : 0;
-  return `<section class="card"><div class="row"><h2>${titulo}</h2>${pill(nv, bateu ? "Meta batida" : `${pctTxt(r)} da meta`)}</div>
-    <div style="max-width:320px;margin:6px auto 0;position:relative">
-      <svg viewBox="0 0 260 150" role="img" aria-label="${pctTxt(r)} da meta de faturamento">
-        <path d="${arco(1)}" fill="none" stroke="var(--off)" stroke-width="18" stroke-linecap="round"/>
-        ${f > 0 ? `<path d="${arco(f)}" fill="none" stroke="${cor}" stroke-width="18" stroke-linecap="round"/>` : ""}
-        ${esperado && !bateu ? `<line x1="${mk[0]}" y1="${mk[1]}" x2="${mk[2]}" y2="${mk[3]}" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>` : ""}
-        <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="8" fill="var(--accent)"/>
-        <text x="${cx - R}" y="${cy + 20}" text-anchor="middle" fill="var(--muted)" font-size="10">0</text><text x="${cx + R}" y="${cy + 20}" text-anchor="middle" fill="var(--muted)" font-size="10">${esc(money0(meta).replace(/\s/g, " "))}</text>
-      </svg></div>
-    <div style="text-align:center;margin-top:-4px"><span class="lbl">${bateu ? "Passou da meta" : "Falta para a meta"}</span><div class="num ${bateu ? "good" : "acc"}" style="font-size:34px">${money0(bateu ? real - meta : falta)}</div>
-      <span class="sm muted">${money0(real)} faturados de ${money0(meta)}</span></div>
-    <div class="calc-out">
-      <div><span class="lbl">Por dia</span><div class="num">${bateu ? "—" : restantes ? money0(falta / restantes) : "—"}</div><span class="xs muted">${restantes} dia${restantes === 1 ? "" : "s"} de trabalho restante${restantes === 1 ? "" : "s"}</span></div>
-      ${deveria ? `<div><span class="lbl">Deveria estar em</span><div class="num ${real >= deveria ? "good" : "bad"}">${money0(deveria)}</div><span class="xs muted">até hoje (traço no velocímetro)</span></div>` : ""}
-      ${extra || ""}
-    </div></section>`;
+// linha de progresso da meta de faturamento, com quanto falta em destaque (barbeiro e barbearia)
+function cardLinha(titulo, sub, real, meta, esperado, restantes, proj){
+  const falta = Math.max(0, meta - real), deveria = meta * (esperado || 0);
+  return `<section class="card"><div class="card-head"><div><h2>${titulo}</h2><span class="sm muted">${sub}</span></div></div>
+    <div style="margin-top:12px">${barra(real / meta, null, esperado ? Math.max(.05, esperado) : null)}<div class="sm" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px"><span><b>${money0(real)}</b> faturados · ${pctTxt(real / meta)}</span><span class="muted">${falta ? `falta ${money0(falta)}${restantes ? ` · ${money0(falta / restantes)} por dia` : ""}` : `passou ${money0(real - meta)}`}</span></div>
+      <div style="text-align:center;margin-top:14px"><span class="lbl">${falta ? "Falta para bater a meta" : "Meta batida! Passou"}</span><div class="num ${falta ? "acc" : "good"}" style="font-size:32px">${money0(falta || real - meta)}</div></div>
+      <div class="cmp" style="margin-top:10px;justify-content:center">${esperado ? pill(real >= deveria ? "good" : real >= deveria * .9 ? "warn" : "bad", `Esperado até agora ${money0(deveria)}`) : ""}${esperado ? pill(proj >= meta ? "good" : "warn", `Projeção ${money0(proj)}`) : ""}</div></div></section>`;
 }
 function barra(r, marca, ritmo){
   const q = ritmo ? r / ritmo : r, nv = r == null ? "n" : q >= .89 ? "good" : q >= .67 ? "warn" : "bad";
@@ -882,12 +863,8 @@ function cardRitmo(lancMes, metasB, perfil){
   const proj = feitos ? t.faturamento / feitos * (feitos + restantes) : 0;
   if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Meta do barbeiro." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
   const esperado = feitos / ((feitos + restantes) || 1);
-  // mesma linha de progresso da meta da barbearia, com quanto falta para a meta dele
-  const meta = +m.faturamento, falta = Math.max(0, meta - t.faturamento), deveria = meta * esperado;
-  return `<section class="card"><div class="card-head"><div><h2>Meta de faturamento de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><span class="sm muted">${money0(meta)} · ${feitos + restantes} dias de trabalho no mês${feitos ? ` · ${feitos} já passaram` : ""}</span></div></div>
-    <div style="margin-top:12px">${barra(t.faturamento / meta, null, feitos ? Math.max(.05, esperado) : null)}<div class="sm" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px"><span><b>${money0(t.faturamento)}</b> faturados · ${pctTxt(t.faturamento / meta)}</span><span class="muted">${falta ? `falta ${money0(falta)}${restantes ? ` · ${money0(falta / restantes)} por dia` : ""}` : `passou ${money0(t.faturamento - meta)}`}</span></div>
-      <div style="text-align:center;margin-top:14px"><span class="lbl">${falta ? "Falta para bater a meta" : "Meta batida! Passou"}</span><div class="num ${falta ? "acc" : "good"}" style="font-size:32px">${money0(falta || t.faturamento - meta)}</div></div>
-      <div class="cmp" style="margin-top:10px;justify-content:center">${feitos ? pill(t.faturamento >= deveria ? "good" : t.faturamento >= deveria * .9 ? "warn" : "bad", `Esperado até agora ${money0(deveria)}`) : ""}${feitos ? pill(proj >= meta ? "good" : "warn", `Projeção ${money0(proj)}`) : ""}</div></div></section>`;
+  return cardLinha(`Meta de faturamento de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}`, `${money0(+m.faturamento)} · ${feitos + restantes} dias de trabalho no mês${feitos ? ` · ${feitos} já passaram` : ""}`,
+    t.faturamento, +m.faturamento, feitos ? esperado : 0, restantes, proj);
 }
 
 // executa depois que o HTML entra na página (gráficos)
@@ -974,8 +951,8 @@ async function pgDashboard(){
         : `<div class="hero-dica ${nvM}">${nvM === "good" ? "Mantenha as metas visíveis e reconheça quem está puxando o resultado." : compFraco ? `O que mais pesa na nota é ${COMP_NOME[compFraco.k].toLowerCase()} (${pctTxt(compFraco.r)} do esperado até hoje). ${DICAS[compFraco.k][nivelDe(Math.min(10, compFraco.r * 9))]}` : ""}</div>`}
     </div></div></section>
 
-  ${metaMes ? cardFalta(mLoja ? "Meta da barbearia" : "Meta do mês da equipe", fatBase, metaMes, metaAteLoja / metaMes, restantes,
-      `<div><span class="lbl">Projeção</span><div class="num ${projBase >= metaMes ? "good" : "warn"}">${money0(projBase)}</div><span class="xs muted">no ritmo atual</span></div>`) : ""}
+  ${metaMes ? cardLinha(mLoja ? "Meta de faturamento da barbearia" : "Meta de faturamento da equipe", `${money0(metaMes)} · ${feitos + restantes} dias de trabalho no mês${feitos ? ` · ${feitos} já passaram` : ""}`,
+      fatBase, metaMes, feitos ? metaAteLoja / metaMes : 0, restantes, projBase) : ""}
   <div class="kpis">
     ${kpiMeta(mLoja ? "Faturamento da barbearia" : "Faturamento do mês", fatBase, metaAteLoja, metaMes, money0)}
     ${tile("Falta para a meta", money0(falta), restantes ? `${money0(falta / restantes)} por dia · ${restantes} dias` : "mês encerrado", falta ? "" : "good")}
