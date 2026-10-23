@@ -443,7 +443,7 @@ const cloud = {
     }
     return out;
   },
-  async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw error; } },
+  async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw new Error(/total_comandas/.test(error.message) ? "Falta rodar o arquivo 009_total_comandas.sql no Supabase." : error.message); } },
   async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw error; },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
@@ -1221,8 +1221,8 @@ function cardImportar(){
       ${porProf.map(x => `<tr><td>${esc(x.p)}</td><td>${opt(x.p, x.id)}</td><td>${x.dias}</td><td>${x.at}</td><td>${x.zero}</td><td>${money0(x.rs)}</td><td>${x.as}</td></tr>`).join("")}
     </tbody></table></div>
     ${I.dados.assinDias.length ? `<div class="hero-dica good" style="margin-top:12px"><b>Assinaturas:</b> ${int(I.dados.assinDias.reduce((s, x) => s + x.cobrancas, 0))} cobranças · ${money0(I.dados.assinDias.reduce((s, x) => s + x.valor, 0))} em ${I.dados.assinDias.length} dia(s). Entram no faturamento da barbearia (Dashboard e Meta da barbearia).</div>` : ""}
-    <p class="xs muted" style="margin:10px 0 0">O valor das comandas entra como <b>Serviços R$</b>; extras e produtos ficam zerados porque o relatório não separa os itens. "Assinantes" são comandas de R$ 0 (atendimento coberto pela assinatura) e contam como atendimento.${I.dados.novasSem ? ` ${I.dados.novasSem} assinatura(s) nova(s) sem comanda no mesmo dia ficaram de fora.` : ""}</p>
-    ${sub ? `<div class="hero-dica warn" style="margin-top:10px">${sub} dia(s) já lançado(s) desses barbeiros serão substituídos pelos números do arquivo.</div>` : ""}
+    <p class="xs muted" style="margin:10px 0 0">O valor das comandas é o faturamento do dia. Depois, em cada dia, lance os extras e os produtos: o app tira esse valor dos serviços para não contar duas vezes. "Assinantes" são comandas de R$ 0 (atendimento coberto pela assinatura) e contam como atendimento.${I.dados.novasSem ? ` ${I.dados.novasSem} assinatura(s) nova(s) sem comanda no mesmo dia ficaram de fora.` : ""}</p>
+    ${sub ? `<div class="hero-dica warn" style="margin-top:10px">${sub} dia(s) já lançado(s) desses barbeiros: atendimentos e valor das comandas vêm do arquivo; extras e produtos que você já lançou ficam e são descontados dos serviços.</div>` : ""}
     <div class="actions"><button class="btn" data-act="impSalvar" ${vao.length || I.dados.assinDias.length ? "" : "disabled"}>Lançar ${vao.reduce((s, x) => s + x.dias, 0)} dia(s) de ${vao.length} barbeiro(s)${I.dados.assinDias.length ? " + assinaturas" : ""}</button><button class="btn ghost" data-act="impCancelar">Cancelar</button></div>
   </section>`;
 }
@@ -1251,9 +1251,10 @@ async function pgLancar(){
       <label class="f">Data<input type="date" id="l-data" data-ch="lancData" value="${d}" max="${today()}"></label>
     </div>
     <div class="row" style="margin:12px 0 4px"><h2 style="margin:0">${esc(dataLonga(d))}</h2>${l ? pill("good", "já lançado · editando") : pill("n", "novo lançamento")}</div>
+    ${x.total_comandas != null ? `<div class="hero-dica" style="margin-top:8px">Dia importado do CashBarber: <b>${money(+x.total_comandas)}</b> em comandas. Lance aqui os extras e os produtos desse valor; o app desconta dos serviços para não contar duas vezes.</div>` : ""}
     <div class="fgrid" style="margin-top:8px">
       ${f("atendimentos", "Atendimentos", "clientes atendidos no dia", "numeric")}
-      ${f("servicos", "Serviços R$", "cortes e barbas (sem os extras)")}
+      ${x.total_comandas != null ? `<label class="f">Serviços R$<input id="l-servicos" value="${numIn(x.servicos)}" readonly tabindex="-1" style="opacity:.75"><span class="xs muted" style="font-weight:500">total das comandas ${money(+x.total_comandas)} − extras − produtos</span></label>` : f("servicos", "Serviços R$", "cortes e barbas (sem os extras)")}
       ${f("extras", "Serviços extras R$", "sobrancelha, pigmentação, hidratação…")}
       ${f("qtd_extras", "Qtd. de extras", "quantos extras vendeu", "numeric")}
       ${f("assinaturas", "Assinaturas novas", "planos vendidos no dia", "numeric")}
@@ -1433,10 +1434,18 @@ const ACOES = {
   },
   async impSalvar(){
     const I = S.imp; if (!I) return;
-    const lista = I.dados.linhas.filter(l => I.map[l.prof]).map(l => ({ barbeiro_id:I.map[l.prof], data:l.data, atendimentos:l.atendimentos, servicos:Math.round(l.servicos * 100) / 100, extras:0, qtd_extras:0, assinaturas:l.assinaturas, produtos:0, obs:"Importado do CashBarber" }));
-    if (I.existentes && !await confirmar(`${I.existentes} dia(s) já lançado(s) serão substituídos. Continuar?`)) return;
+    // extras e produtos já lançados à mão no dia ficam; serviços = total das comandas − extras − produtos
+    const ja = await DB.lancamentos(I.dados.ini, I.dados.fim);
+    const lista = I.dados.linhas.filter(l => I.map[l.prof]).map(l => ({ barbeiro_id:I.map[l.prof], data:l.data, atendimentos:l.atendimentos, total_comandas:Math.round(l.servicos * 100) / 100, assinaturas:l.assinaturas }));
+    if (I.existentes && !await confirmar(`${I.existentes} dia(s) já lançado(s) serão atualizados com o arquivo (extras e produtos ficam). Continuar?`)) return;
     // um mesmo barbeiro do app ligado a dois nomes do CashBarber: soma os dois
-    const uni = new Map(); for (const l of lista) { const k = l.barbeiro_id + l.data, x = uni.get(k); if (x) ["atendimentos","servicos","assinaturas"].forEach(c => x[c] += l[c]); else uni.set(k, l); }
+    const uni = new Map(); for (const l of lista) { const k = l.barbeiro_id + l.data, x = uni.get(k); if (x) ["atendimentos","total_comandas","assinaturas"].forEach(c => x[c] += l[c]); else uni.set(k, l); }
+    for (const l of uni.values()) {
+      const ex = ja.find(j => j.barbeiro_id === l.barbeiro_id && j.data === l.data) || {};
+      l.extras = +ex.extras || 0; l.qtd_extras = +ex.qtd_extras || 0; l.produtos = +ex.produtos || 0; l.obs = ex.obs || "Importado do CashBarber";
+      if (l.extras + l.produtos > l.total_comandas) { l.extras = 0; l.qtd_extras = 0; l.produtos = 0; }  // números antigos maiores que o total: recomeça
+      l.servicos = Math.round((l.total_comandas - l.extras - l.produtos) * 100) / 100;
+    }
     toast("Lançando…"); await DB.salvarLancs([...uni.values()]); await DB.salvarAssinDia(I.dados.assinDias);
     S.imp = null; toast(`${uni.size} lançamento(s) e ${I.dados.assinDias.length} dia(s) de assinaturas importados.`); render();
   },
@@ -1464,6 +1473,13 @@ const ACOES = {
     if (S.lancData > today()) return toast("Não dá para lançar um dia futuro.");
     const l = { barbeiro_id:bid, data:S.lancData, atendimentos:Math.round(parseNum(g("atendimentos"))), servicos:parseNum(g("servicos")), extras:parseNum(g("extras")),
       qtd_extras:Math.round(parseNum(g("qtd_extras"))), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")), obs:g("obs").trim() || null };
+    // dia importado: o total das comandas já inclui extras e produtos
+    const [ant] = await DB.lancamentos(S.lancData, S.lancData, bid);
+    if (ant && ant.total_comandas != null) {
+      const tot = +ant.total_comandas;
+      if (l.extras + l.produtos > tot + .005) return toast(`Extras + produtos (${money(l.extras + l.produtos)}) passam do total das comandas (${money(tot)}).`);
+      l.total_comandas = tot; l.servicos = Math.round((tot - l.extras - l.produtos) * 100) / 100;
+    }
     if (!l.atendimentos && !l.servicos && !l.extras && !l.produtos && !l.assinaturas) return toast("Preencha pelo menos um valor.");
     await DB.salvarLanc(l); toast(`Dia ${dataBR(S.lancData)} salvo.`); render();
   },
@@ -1532,6 +1548,12 @@ async function fotoQuadrada(file){
   } finally { URL.revokeObjectURL(url); }
 }
 async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.equipe.find(e => e.id === S.me.id); if (eu) S.me = eu; }
+document.addEventListener("input", e => {
+  if (!["l-extras","l-produtos"].includes(e.target.id)) return;
+  const sv = $("#l-servicos"); if (!sv || !sv.readOnly) return;
+  const tot = parseNum((sv.nextElementSibling.textContent.match(/R\$\s*([\d.,]+)/) || [])[1]);
+  sv.value = numIn(Math.max(0, Math.round((tot - parseNum($("#l-extras").value) - parseNum($("#l-produtos").value)) * 100) / 100));
+});
 document.addEventListener("change", async e => {
   if (e.target.dataset.ch === "foto") {
     const f = e.target.files && e.target.files[0], id = e.target.dataset.id; if (!f) return;
