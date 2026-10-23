@@ -685,7 +685,7 @@ const primeiroNome = n => (n || "").split(" ")[0];
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Metas do mês","◎"],["lancar","Lançar dia","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
@@ -822,7 +822,7 @@ async function pgPainel(){
   ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Evolução</h2><span class="xs muted">barras = faturamento · linha = meta</span></div><div class="chart-box"><canvas id="chEvo"></canvas></div></section>` : ""}
   ${ritmo}
   ${tabela}
-  ${S.me.papel === "admin" ? `<div class="actions"><button class="btn sec" data-act="lancarPara" data-v="${id}">Lançar dia para ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
+  ${S.me.papel === "admin" ? `<div class="actions"><button class="btn sec" data-act="lancarPara" data-v="${id}">Lançar para ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
   ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
 }
 
@@ -832,7 +832,7 @@ function cardRitmo(lancMes, metasB, perfil){
   const t = totais(lancMes), temHoje = lancMes.some(l => l.data === h);
   const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1));
   const proj = feitos ? t.faturamento / feitos * (feitos + restantes) : 0;
-  if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Metas do mês." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
+  if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Meta do barbeiro." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
   const falta = k => Math.max(0, (+m[k]||0) - t[k]);
   const ticket = t.ticket || (+perfil.ticket_medio || 0);
   const porDia = restantes ? falta("faturamento") / restantes : 0;
@@ -931,7 +931,7 @@ async function pgDashboard(){
     <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
     <div class="hero-txt"><div class="card-head"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><button class="arrow" data-tab="equipe" aria-label="Ver ranking da equipe">↗</button></div><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
       <div class="cmp">${notaS != null ? pill(nivelDe(notaS), `Semana: ${dec1(notaS)}`) : ""}${pill(proj >= metaMes && metaMes ? "good" : "warn", `Projeção do mês ${money0(proj)}`)}${varAnt != null ? pill(varAnt >= 0 ? "good" : "bad", `${varAnt >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(varAnt * 100))}% vs mesmo período de ${pD(antIni).toLocaleDateString("pt-BR",{month:"long"})}`) : ""}</div>
-      ${notaM == null ? `<div class="hero-dica">Sem metas para ${esc(pm.label)}. Defina em Metas do mês para a nota aparecer.</div>`
+      ${notaM == null ? `<div class="hero-dica">Sem metas para ${esc(pm.label)}. Defina em Meta do barbeiro para a nota aparecer.</div>`
         : `<div class="hero-dica ${nvM}">${nvM === "good" ? "Mantenha as metas visíveis e reconheça quem está puxando o resultado." : compFraco ? `O que mais pesa na nota é ${COMP_NOME[compFraco.k].toLowerCase()} (${pctTxt(compFraco.r)} do esperado até hoje). ${DICAS[compFraco.k][nivelDe(Math.min(10, compFraco.r * 9))]}` : ""}</div>`}
     </div></div></section>
 
@@ -945,7 +945,7 @@ async function pgDashboard(){
   </div>
 
   <div class="grid g2">
-    <section class="card"><div class="card-head"><div><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))}</span></div><button class="arrow" data-tab="lancar" aria-label="Lançar dia">↗</button></div>
+    <section class="card"><div class="card-head"><div><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))}</span></div><button class="arrow" data-tab="lancar" aria-label="Lançamentos">↗</button></div>
       ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Atendimentos</span><div class="num">${int(totDia.atendimentos)}</div></div><div><span class="lbl">Extras</span><div class="num">${money0(totDia.extras)}</div></div><div><span class="lbl">Assinaturas</span><div class="num">${int(totDia.assinaturas)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
       ${faltamLancar.length ? `<div class="hero-dica warn">Falta lançar: ${faltamLancar.map(b => esc(primeiroNome(b.nome))).join(", ")}.</div>` : ehDiaUtil(diaRef) ? `<div class="hero-dica good">Todos lançaram.</div>` : `<p class="sm muted" style="margin:8px 0 0">Dia de folga.</p>`}
     </section>
@@ -1090,7 +1090,7 @@ async function pgLoja(){
         return `<tr><td><span class="who">${avatar(l.b, "av-sm")}<b>${esc(l.b.nome)}</b></span></td><td>${pctTxt(l.share)}</td><td><b>${money0(l.parte)}</b>${l.metaInd && Math.abs(l.metaInd - l.parte) > 1 ? `<br><span class="xs muted">meta atual ${money0(l.metaInd)}</span>` : ""}</td><td>${money0(l.parte / u)}</td><td>${money0(l.t.faturamento)}</td><td class="${nv}">${pctTxt(r)}</td><td>${l.proj ? money0(l.proj) : "—"}</td></tr>`; }).join("")}
       </tbody></table></div>
       <div class="actions"><button class="btn sec" data-act="aplicarDivisao">Usar como meta de faturamento de cada barbeiro</button></div>
-      <p class="xs muted" style="margin:6px 0 0">Grava esses valores em Metas do mês (só o faturamento; extras, assinaturas e produtos continuam como estão).</p></section>` : "";
+      <p class="xs muted" style="margin:6px 0 0">Grava esses valores em Meta do barbeiro (só o faturamento; extras, assinaturas e produtos continuam como estão).</p></section>` : "";
   // comparação: média dos barbeiros com lançamento no mês
   const comDados = linhas.filter(l => l.t.dias > 0);
   const KS = [["faturamento","Faturamento",money0],["porDia","Fat. por dia",money0],["atendimentos","Atendimentos",int],["ticket","Ticket médio",money],["extras","Extras",money0],["assinaturas","Assinaturas",int],["produtos","Produtos",money0]];
@@ -1439,7 +1439,7 @@ const ACOES = {
   async aprovar(v){
     const g = k => document.querySelector(`[data-perfil="${v}"][data-k="${k}"]`).value;
     await DB.salvarPerfil(v, { aprovado:true, ativo:true, comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) });
-    S.equipe = await DB.equipe(); toast(`${nomeDe(v)} aprovado. Agora defina a meta dele em Metas do mês.`); render();
+    S.equipe = await DB.equipe(); toast(`${nomeDe(v)} aprovado. Agora defina a meta dele em Meta do barbeiro.`); render();
   },
   async recusar(v){
     if (!await confirmar(`Recusar ${nomeDe(v)}? Ele não vai conseguir usar o app. Dá para reativar depois na lista da equipe.`)) return;
