@@ -471,7 +471,7 @@ const demo = {
   async metas(){ const me = await demo.me(); return demoLoad().metas.filter(m => me.papel === "admin" || m.barbeiro_id === me.id).map(m => ({...m})); },
   async salvarMetas(lista){ const db = demoLoad(); lista.forEach(m => { const i = db.metas.findIndex(x => x.barbeiro_id === m.barbeiro_id && x.mes === m.mes); if (i >= 0) db.metas[i] = {...m}; else db.metas.push({...m}); }); demoSave(); },
   async lancamentos(ini, fim, barbeiro){ const me = await demo.me(); return demoLoad().lanc.filter(l => l.data >= ini && l.data <= fim && (barbeiro ? l.barbeiro_id === barbeiro : (me.papel === "admin" || l.barbeiro_id === me.id))).map(l => ({...l})).sort((a,b) => a.data < b.data ? -1 : 1); },
-  async salvarLanc(l){ const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
+  async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
   async resumoEquipe(ini, fim){
     const me = await demo.me(), db = demoLoad();
@@ -593,7 +593,7 @@ const DICAS = {
     bad: [
       ["Volte para o básico hoje", "Confira a agenda da manhã e preencha os horários vagos: chame no WhatsApp quem cortou há mais de 20 dias."],
       ["Uma meta por atendimento", "Em cada cliente, ofereça pelo menos uma coisa além do corte (barba, sobrancelha, produto ou assinatura). Sem oferta não tem venda."],
-      ["Lance todos os dias", "Registre o resultado no fim de cada dia. O que não é medido não melhora, e a nota fica injusta com você."],
+      ["Confira os seus números", "Acompanhe o painel todo dia: o admin lança o seu resultado e a nota atualiza. Se algum dia estiver diferente do que você fez, avise o admin."],
     ],
     warn: [
       ["Você está perto, falta consistência", "Escolha o ponto mais fraco (veja abaixo) e foque só nele até o fim da semana."],
@@ -662,7 +662,7 @@ const ABAS_ADMIN = [
   ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["metas","Metas do mês","◎"],["lancar","Lançar dia","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
-  ["painel","Meu painel","◔"],["lancar","Lançar dia","＋"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
+  ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ICONE = {
   dashboard:'<svg class="ic sym-ic" viewBox="40 20 870 560"><g fill="currentColor" stroke="none"><path d="M55,450 C 70,180 300,30 470,33 C 640,36 790,140 845,278 L 740,300 C 690,200 590,125 450,128 C 280,132 120,260 55,450 Z"/><g class="ndl"><path d="M470,392 L890,312 L500,505 Z"/><circle cx="467" cy="445" r="76"/></g></g></svg>',
@@ -679,8 +679,8 @@ const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : ABAS_BARB;
 function renderNav(){
   const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
   $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
-  const curtos = S.me.papel === "admin" ? ["dashboard","equipe","metas","barbeiros"] : ["painel","lancar","calc","historico"];
-  const nomesCurtos = { dashboard:"Início", equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
+  const curtos = S.me.papel === "admin" ? ["dashboard","equipe","metas","barbeiros"] : ["painel","calc","historico","ajustes"];
+  const nomesCurtos = { ajustes:"Ajustes", dashboard:"Início", equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
   $("#bottomnav").innerHTML = curtos.map(k => `<button data-tab="${k}" ${S.tab === k || (k === "equipe" && S.tab === "painel" && S.me.papel === "admin") ? 'aria-current="page"' : ""}>${ICONE[k]}${nomesCurtos[k]}</button>`).join("") + `<button data-act="menu" data-v="1">${'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'}Mais</button>`;
   $("#topav").innerHTML = avatar(S.me);
   $("#sideuser").innerHTML = `${avatar(S.me)}<div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
@@ -1031,6 +1031,7 @@ function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { 
 
 /* ======================= PÁGINA: LANÇAR DIA ======================= */
 async function pgLancar(){
+  if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }  // só o admin lança
   const admin = S.me.papel === "admin";
   if (admin && !S.lancBarb) S.lancBarb = (ativos()[0] || {}).id;
   const bid = admin ? S.lancBarb : S.me.id;
@@ -1038,7 +1039,7 @@ async function pgLancar(){
   const d = S.lancData;
   const [l] = await DB.lancamentos(d, d, bid);
   const x = l || {};
-  $("#psub").textContent = admin ? "Registre o resultado do dia de um barbeiro" : "Registre o seu resultado no fim do dia";
+  $("#psub").textContent = "Registre o resultado do dia de um barbeiro";
   const semana = await DB.lancamentos(addD(d, -6), d, bid);
   const f = (k, rot, dica, modo) => `<label class="f">${rot}<input id="l-${k}" inputmode="${modo || "decimal"}" value="${modo === "numeric" ? (x[k] || "") : numIn(x[k])}" placeholder="0">${dica ? `<span class="xs muted" style="font-weight:500">${dica}</span>` : ""}</label>`;
   return `<section class="card">
@@ -1103,9 +1104,9 @@ function calcOut(ganho, taxa, ticket, u, m){
 /* ======================= PÁGINA: HISTÓRICO ======================= */
 async function pgHistorico(){
   const h = today(), lista = (await DB.lancamentos(addD(h, -60), h, S.me.id)).reverse();
-  $("#psub").textContent = "Seus lançamentos dos últimos 60 dias";
+  $("#psub").textContent = "Seus resultados dos últimos 60 dias, lançados pelo admin";
   return `<section class="card"><div class="tbl-wrap"><table><thead><tr><th>Dia</th><th>Atend.</th><th>Serviços</th><th>Extras</th><th>Assin.</th><th>Produtos</th><th>Total</th></tr></thead><tbody>
-    ${lista.map(l => { const t = totais([l]); return `<tr class="click" data-act="irData" data-v="${l.data}"><td>${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</td><td>${t.atendimentos}</td><td>${money0(t.servicos)}</td><td>${money0(t.extras)}</td><td>${t.assinaturas}</td><td>${money0(t.produtos)}</td><td><b>${money0(t.faturamento)}</b></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">Nenhum lançamento ainda.</td></tr>`}
+    ${lista.map(l => { const t = totais([l]); return `<tr><td>${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</td><td>${t.atendimentos}</td><td>${money0(t.servicos)}</td><td>${money0(t.extras)}</td><td>${t.assinaturas}</td><td>${money0(t.produtos)}</td><td><b>${money0(t.faturamento)}</b></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">O admin ainda não lançou nenhum dia seu.</td></tr>`}
   </tbody></table></div></section>`;
 }
 

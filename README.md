@@ -1,6 +1,6 @@
 # BOLD PERFORMANCE
 
-Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (faturamento, serviços extras, assinaturas e produtos), cada barbeiro tem a própria conta, lança o resultado do dia e acompanha o painel com nota de 0 a 10, comparação com a média da equipe e dicas.
+Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (faturamento, serviços extras, assinaturas e produtos), o admin lança o resultado do dia e cada barbeiro, com a própria conta, acompanha o painel com nota de 0 a 10, comparação com a média da equipe e dicas.
 
 ## O que já existe (versão 1)
 
@@ -11,7 +11,7 @@ Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (fat
 | **Painel do barbeiro** | Barbeiro (o próprio) e admin (qualquer um) | Nota do período com velocímetro, frase de diagnóstico, indicadores contra a meta e contra a média da equipe, dicas, gráfico de evolução, meta do mês com projeção e quanto falta por dia, tabela "você x equipe" |
 | **Filtros de período** | Todos | Diário, semanal, quinzenal, mensal, trimestral, semestral e anual, com navegação para períodos anteriores |
 | **Metas do mês** | Admin | Metas por barbeiro e por mês; copiar do mês anterior; repetir a 1ª linha para todos |
-| **Lançar dia** | Barbeiro (o próprio) e admin (qualquer um) | Atendimentos, serviços R$, extras R$ e quantidade, assinaturas novas, produtos R$ e observação; últimos 7 dias |
+| **Lançar dia** | Só o admin (para qualquer barbeiro) | Atendimentos, serviços R$, extras R$ e quantidade, assinaturas novas, produtos R$ e observação; últimos 7 dias |
 | **Minha meta** | Barbeiro | Quanto quer ganhar → faturamento necessário no mês, por dia, por semana e atendimentos por dia, usando a comissão e o ticket médio |
 | **Histórico** | Barbeiro | Lançamentos dos últimos 60 dias |
 | **Barbeiros** | Admin | Cadastro por e-mail, comissões (serviços e produtos), desativar/reativar |
@@ -36,11 +36,11 @@ Enquanto `SUPABASE_URL` estiver vazio no topo do `index.html`, o app abre em mod
 2. **index.html**: preencha `SUPABASE_URL` e `SUPABASE_KEY` (Project Settings → API, chave *publishable/anon*). Nunca coloque a *secret key*.
 3. **Vercel**: Add New → Project → importe o repositório → Deploy (site estático, sem configuração).
 4. **Supabase → Authentication → URL Configuration**: adicione a URL da Vercel em **Redirect URLs**. Se o projeto for o mesmo do HABITAH, **não troque o Site URL** (ele continua sendo o do HABITAH); basta incluir a URL do Bold na lista de Redirect URLs.
-5. Rode também `supabase/002_cadastro_livre.sql` e `supabase/003_fotos.sql` (fotos de perfil). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
+5. Rode também `supabase/002_cadastro_livre.sql` e `supabase/003_fotos.sql` (fotos de perfil) e `supabase/004_so_admin_lanca.sql` (só o admin lança; o barbeiro só vê). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
 
 ## Segurança
 
-- RLS em todas as tabelas. O barbeiro lê e grava só os próprios lançamentos e lê só as próprias metas. Comissão, papel e status só o admin altera (gatilho no banco).
+- RLS em todas as tabelas. O barbeiro só lê os próprios lançamentos (quem lança é o admin) e lê só as próprias metas. Comissão, papel e status só o admin altera (gatilho no banco).
 - Quem cria conta pelo Bold sem convite entra como pendente: não vê dados da equipe nem lança até o admin aprovar. O barbeiro não consegue se aprovar sozinho (gatilho no banco). Cadastros feitos pelo HABITAH são ignorados pelo Bold.
 - A média da equipe vem da função `bp_resumo_equipe`, que devolve os totais sem nome.
 
