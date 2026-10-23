@@ -307,6 +307,8 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
 @media (min-aspect-ratio:1/1){.splash{background-image:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.85) 100%),url(icons/fundo-linhas-largo.jpg)}}
 .splash .sym{filter:drop-shadow(0 6px 28px rgba(255,117,31,.45))}
 .splash .sym{width:150px}
+.splash{position:fixed;inset:0;z-index:100;transition:opacity .35s ease}
+.splash.sai{opacity:0;pointer-events:none}
 .splash img{width:180px;height:auto}
 .loading .sym{width:72px;margin:24px auto;opacity:.9}
 .sym.anim .ndl{transform-origin:467px 445px;transform-box:view-box}
@@ -1217,7 +1219,7 @@ async function render(){
   $("#ptitle").textContent = S.tab === "painel" && S.me.papel === "admin" ? nomeDe(S.ver) : a[1];
   $("#psub").textContent = "";
   const main = $("#main");
-  if (!main.innerHTML.trim()) main.innerHTML = `<div class="loading">${SIMBOLO("anim")}</div>`;
+  if (!main.innerHTML.trim() && !document.querySelector("#authRoot:not([hidden]) .splash")) main.innerHTML = `<div class="loading">${SIMBOLO("anim")}</div>`;
   _pos.length = 0;
   let html;
   try { html = await PAGINAS[S.tab](); }
@@ -1481,11 +1483,15 @@ async function iniciar(){
   if (me.aprovado === false) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", `Olá, ${esc(primeiroNome(me.nome))}! Seu cadastro foi enviado para o admin. Assim que ele aprovar, é só entrar de novo.`); }
   if (!me.ativo) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", "Esta conta está desativada. Fale com o admin."); }
   S.me = me;
+  // um só velocímetro: a tela de abertura fica por cima até a primeira página estar pronta
+  const R = $("#authRoot"); if (!R.querySelector(".splash")) R.innerHTML = `<div class="splash">${SIMBOLO("anim")}</div>`;
   await carregarBase();
   S.tab = S.me.papel === "admin" ? "dashboard" : "painel";
-  $("#authRoot").hidden = true; $("#app").hidden = false;
+  $("#app").hidden = false;
   if (DEMO) { const b = $("#demoband"); b.hidden = false; b.innerHTML = `Modo demonstração · dados fictícios<button data-act="sair">Trocar conta</button>`; }
-  render();
+  await render();
+  const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
+  setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
 }
 // ao voltar para o app (celular desbloqueado, troca de aba, PWA reaberto) recarrega os dados
 // e, se saiu uma versão nova do app, recarrega a página sozinho
