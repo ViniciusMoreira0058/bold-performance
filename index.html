@@ -226,9 +226,9 @@ td .nb{font:800 italic 16px var(--display)}
 <script>
 /* ======================= CONFIGURAÇÃO ======================= */
 // Preencha com os dados do seu projeto no Supabase (Project Settings → API).
-// Enquanto estiverem vazios, o app abre no MODO DEMONSTRAÇÃO, com dados fictícios salvos só neste aparelho.
-const SUPABASE_URL = "";
-const SUPABASE_KEY = ""; // chave pública (publishable/anon): segura no navegador, a RLS protege os dados
+// Vazios = MODO DEMONSTRAÇÃO (dados fictícios só neste aparelho). Com ?demo=1 na URL a demonstração abre mesmo com as chaves preenchidas.
+const SUPABASE_URL = "https://jgoewqyfihdzpurlvaxe.supabase.co";
+const SUPABASE_KEY = "sb_publishable_QBxqFv2T9W-4-XTj_OSVEA_d1olCthu"; // chave pública (publishable/anon): segura no navegador, a RLS protege os dados
 
 const DEMO = !SUPABASE_URL || /[?&]demo=1/.test(location.search);
 const sb = !DEMO && window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;

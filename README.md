@@ -31,10 +31,10 @@ Enquanto `SUPABASE_URL` estiver vazio no topo do `index.html`, o app abre em mod
 
 ## Colocar no ar
 
-1. **Supabase**: crie um projeto (pode ser o mesmo do HABITAH; os nomes das tabelas não colidem). SQL Editor → New query → cole `supabase/schema.sql` → Run. No fim ele já define `barbeariavm0058@gmail.com` como admin (troque o e-mail no fim do arquivo se for outro).
+1. **Supabase**: o app usa o mesmo projeto do HABITAH (as chaves já estão no `index.html`; os nomes das tabelas não colidem). SQL Editor → New query → cole `supabase/schema.sql` → Run. No fim ele já define `barbeariavm0058@gmail.com` como admin (troque o e-mail no fim do arquivo se for outro).
 2. **index.html**: preencha `SUPABASE_URL` e `SUPABASE_KEY` (Project Settings → API, chave *publishable/anon*). Nunca coloque a *secret key*.
 3. **Vercel**: Add New → Project → importe o repositório → Deploy (site estático, sem configuração).
-4. **Supabase → Authentication → URL Configuration**: em Site URL e Redirect URLs, cole a URL da Vercel.
+4. **Supabase → Authentication → URL Configuration**: adicione a URL da Vercel em **Redirect URLs**. Se o projeto for o mesmo do HABITAH, **não troque o Site URL** (ele continua sendo o do HABITAH); basta incluir a URL do Bold na lista de Redirect URLs.
 5. Entre com o seu e-mail (Criar conta, se ainda não tiver login nesse Supabase). Em **Barbeiros**, cadastre nome e e-mail de cada um e mande o link do app: eles tocam em **Criar conta** com o mesmo e-mail e caem direto no painel.
 
 ## Segurança
