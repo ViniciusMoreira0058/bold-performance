@@ -724,7 +724,8 @@ const ICONE = {
   loja:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-5h6v5"/><path d="M4 20h16"/></svg>',
   historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
 };
-const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : ABAS_BARB;
+// "ver como barbeiro": o admin navega pela visão do barbeiro (sem Ajustes, que mexeria na conta do admin)
+const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : S.comoAdmin ? ABAS_BARB.filter(a => a[0] !== "ajustes") : ABAS_BARB;
 function renderNav(){
   const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
   $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
@@ -842,7 +843,7 @@ async function pgPainel(){
   ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Evolução</h2><span class="xs muted">barras = faturamento · linha = meta</span></div><div class="chart-box"><canvas id="chEvo"></canvas></div></section>` : ""}
   ${ritmo}
   ${tabela}
-  ${S.me.papel === "admin" ? `<div class="actions"><button class="btn sec" data-act="lancarPara" data-v="${id}">Atualizar ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
+  ${S.me.papel === "admin" ? `<div class="actions"><button class="btn" data-act="verComo" data-v="${id}">Ver como ${esc(primeiroNome(perfil.nome))} vê</button><button class="btn sec" data-act="lancarPara" data-v="${id}">Atualizar ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
   ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
 }
 
@@ -1369,6 +1370,7 @@ const PAGINAS = { loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pg
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
+  if (S.comoAdmin && !abas().some(a => a[0] === S.tab)) S.tab = "painel";
   renderNav();
   const a = abas().find(x => x[0] === S.tab) || abas()[0];
   $("#ptitle").textContent = S.tab === "painel" && S.me.papel === "admin" ? nomeDe(S.ver) : a[1];
@@ -1389,8 +1391,8 @@ async function carregarBase(){
   const [cfg, eq, mt] = await Promise.all([DB.config(), DB.equipe(), DB.metas()]);
   CFG = { nome:cfg.nome, dias_trabalho:(cfg.dias_trabalho || [1,2,3,4,5,6]).map(Number) };
   S.equipe = eq; S.metas = mt;
-  S.metasLoja = S.me.papel === "admin" ? await DB.metasLoja() : [];
-  const eu = eq.find(e => e.id === S.me.id); if (eu) S.me = eu;
+  S.metasLoja = (S.comoAdmin || S.me).papel === "admin" ? await DB.metasLoja() : [];
+  const eu = eq.find(e => e.id === S.me.id); if (eu) S.me = S.comoAdmin ? { ...eu, papel:"barbeiro" } : eu;
 }
 
 /* ======================= AÇÕES ======================= */
@@ -1516,7 +1518,13 @@ const ACOES = {
   dia: v => { v = +v; const s = new Set(CFG.dias_trabalho); s.has(v) ? s.delete(v) : s.add(v); if (!s.size) return; CFG.dias_trabalho = [...s].sort(); render(); },
   async salvarCfg(){ CFG.nome = $("#a-nome").value.trim() || "Barbearia"; await DB.salvarConfig(CFG); toast("Ajustes salvos."); render(); },
   async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
-  async sair(){ if (DEMO) lsSet("bp-demo-user", null); else await sb.auth.signOut(); location.reload(); },
+  verComo(v){
+    const b = S.equipe.find(e => e.id === v); if (!b) return;
+    S.comoAdmin = S.me; S.me = { ...b, papel:"barbeiro" }; S.tab = "painel"; S.ver = null;
+    faixaComo(); window.scrollTo(0, 0); render();
+  },
+  voltarAdmin(){ const id = S.me.id; S.me = S.comoAdmin; S.comoAdmin = null; S.tab = "painel"; S.ver = id; faixaComo(); window.scrollTo(0, 0); render(); },
+  async sair(){ if (S.comoAdmin) return ACOES.voltarAdmin(); if (DEMO) lsSet("bp-demo-user", null); else await sb.auth.signOut(); location.reload(); },
   async resetDemo(){ if (!await confirmar("Apagar os dados da demonstração e gerar novos?")) return; try { localStorage.removeItem("bp-demo"); } catch(e) {} demoDB = null; location.reload(); },
   async demoEntrar(v){ lsSet("bp-demo-user", v); location.reload(); },
 };
@@ -1538,7 +1546,7 @@ async function fotoQuadrada(file){
     return await new Promise(ok => c.toBlob(ok, "image/jpeg", .86));
   } finally { URL.revokeObjectURL(url); }
 }
-async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.equipe.find(e => e.id === S.me.id); if (eu) S.me = eu; }
+async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.equipe.find(e => e.id === S.me.id); if (eu) S.me = S.comoAdmin ? { ...eu, papel:"barbeiro" } : eu; }
 // Lançamentos: soma do mês e quanto entrou desde a última atualização, enquanto digita
 document.addEventListener("input", e => {
   const row = e.target.closest(".acum"); if (!row) return;
@@ -1692,6 +1700,12 @@ function telaLogin(modo, msg){
   };
 }
 
+function faixaComo(){
+  const b = $("#demoband");
+  if (S.comoAdmin) { b.hidden = false; b.innerHTML = `Vendo como ${esc(primeiroNome(S.me.nome))} vê o app<button data-act="voltarAdmin">Voltar ao admin</button>`; }
+  else if (DEMO) { b.hidden = false; b.innerHTML = `Modo demonstração · dados fictícios<button data-act="sair">Trocar conta</button>`; }
+  else b.hidden = true;
+}
 async function iniciar(){
   let me;
   try { me = await DB.me(); } catch (e) { console.error(e); return telaLogin("entrar", "Não foi possível conectar. Verifique a internet."); }
@@ -1705,7 +1719,7 @@ async function iniciar(){
   await carregarBase();
   S.tab = S.me.papel === "admin" ? "dashboard" : "painel";
   $("#app").hidden = false;
-  if (DEMO) { const b = $("#demoband"); b.hidden = false; b.innerHTML = `Modo demonstração · dados fictícios<button data-act="sair">Trocar conta</button>`; }
+  faixaComo();
   await render();
   const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
   setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
