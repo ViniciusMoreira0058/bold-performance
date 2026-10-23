@@ -535,12 +535,13 @@ const primeiroNome = n => (n || "").split(" ")[0];
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["metas","Metas do mês","◎"],["lancar","Lançar dia","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["metas","Metas do mês","◎"],["lancar","Lançar dia","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["lancar","Lançar dia","＋"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ICONE = {
+  dashboard:'<svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="9" rx="2"/><rect x="13.5" y="3.5" width="7" height="5" rx="2"/><rect x="13.5" y="11.5" width="7" height="9" rx="2"/><rect x="3.5" y="15.5" width="7" height="5" rx="2"/></svg>',
   equipe:'<svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.6 0 4.4 1.6 5 4.5"/></svg>',
   painel:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4.5-5"/><circle cx="12" cy="16" r="1.6"/></svg>',
   metas:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/></svg>',
@@ -554,8 +555,8 @@ const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : ABAS_BARB;
 function renderNav(){
   const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
   $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
-  const curtos = S.me.papel === "admin" ? ["equipe","metas","lancar","barbeiros"] : ["painel","lancar","calc","historico"];
-  const nomesCurtos = { equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
+  const curtos = S.me.papel === "admin" ? ["dashboard","equipe","metas","barbeiros"] : ["painel","lancar","calc","historico"];
+  const nomesCurtos = { dashboard:"Início", equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
   $("#bottomnav").innerHTML = curtos.map(k => `<button data-tab="${k}" ${S.tab === k || (k === "equipe" && S.tab === "painel" && S.me.papel === "admin") ? 'aria-current="page"' : ""}>${ICONE[k]}${nomesCurtos[k]}</button>`).join("") + `<button data-act="menu" data-v="1">${'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'}Mais</button>`;
   $("#sideuser").innerHTML = `<div class="avatar">${esc(iniciais(S.me.nome))}</div><div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
 }
@@ -710,6 +711,110 @@ function graficoEvo(lista, metasB, p){
     options:{ responsive:true, maintainAspectRatio:false, animation:false,
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${money0(c.raw)}` } } },
       scales:{ x:{ grid:{ display:false }, ticks:{ color:corVar("--muted"), maxRotation:0, autoSkip:true, maxTicksLimit:10 } },
+               y:{ beginAtZero:true, grid:{ color:corVar("--line") }, ticks:{ color:corVar("--muted"), callback:v => v >= 1000 ? (v/1000).toLocaleString("pt-BR") + " mil" : v } } } }
+  }));
+}
+
+/* ======================= PÁGINA: DASHBOARD (ADMIN) ======================= */
+async function pgDashboard(){
+  const h = today(), pm = periodo("mes", h), ps = periodo("semana", h);
+  const ontem = addD(h, -1), diaNum = pD(h).getDate();
+  const antIni = addM(pm.ini, -1), antMesmoDia = (() => { const f = mesFim(antIni); const d = addD(antIni, diaNum - 1); return d > f ? f : d; })();
+  const ini = ps.ini < pm.ini ? ps.ini : pm.ini;
+  const lanc = await DB.lancamentos(ini < antIni ? ini : antIni, pm.fim);
+  const doMes = lanc.filter(l => l.data >= pm.ini && l.data <= pm.fim), daSemana = lanc.filter(l => l.data >= ps.ini && l.data <= ps.fim);
+  const doAnt = lanc.filter(l => l.data >= antIni && l.data <= antMesmoDia);
+  const eq = ativos(), ids = new Set(eq.map(b => b.id)), dosAtivos = l => ids.has(l.barbeiro_id);
+  $("#psub").textContent = `${CFG.nome} · ${dataLonga(h)}`;
+  const np = pendentes().length;
+  const avisoNovos = np ? `<section class="card" style="border-color:var(--accent)"><div class="row"><div><h2>${np} novo${np > 1 ? "s" : ""} cadastro${np > 1 ? "s" : ""}</h2><span class="sm muted">${pendentes().map(b => esc(b.nome)).join(", ")} aguarda a sua aprovação.</span></div><button class="btn" data-tab="barbeiros">Ver e aprovar</button></div></section>` : "";
+  if (!eq.length) return `${avisoNovos}<section class="card"><h2>Comece montando a equipe</h2><p class="sm muted">Mande o link do app para os barbeiros. Cada um toca em <b>Criar conta</b> e aparece aqui para você aprovar. Depois defina as metas do mês.</p><div class="actions"><button class="btn" data-act="copiarLink">Copiar link do app</button><button class="btn sec" data-tab="barbeiros">Barbeiros</button></div></section>`;
+
+  // mês e semana por barbeiro
+  const linhasM = eq.map(b => ({ b, av:avaliar(doMes.filter(l => l.barbeiro_id === b.id), metasDe(b.id), pm) }));
+  const linhasS = eq.map(b => ({ b, av:avaliar(daSemana.filter(l => l.barbeiro_id === b.id), metasDe(b.id), ps) }));
+  const somaMeta = ls => ls.reduce((s, l) => { for (const k of ["faturamento","extras","assinaturas","produtos"]) { s[k] += l.av.meta[k]; s.cheia[k] += l.av.metaCheia[k]; } return s; }, { faturamento:0, extras:0, assinaturas:0, produtos:0, cheia:{ faturamento:0, extras:0, assinaturas:0, produtos:0 } });
+  const totM = totais(doMes.filter(dosAtivos)), metaM = somaMeta(linhasM), notaM = nota(totM, metaM).nota;
+  const totS = totais(daSemana.filter(dosAtivos)), notaS = nota(totS, somaMeta(linhasS)).nota;
+  const totAnt = totais(doAnt.filter(dosAtivos));
+  const varAnt = totAnt.faturamento ? totM.faturamento / totAnt.faturamento - 1 : null;
+
+  // ritmo e projeção do mês
+  const temHoje = doMes.some(l => l.data === h);
+  const feitos = uteisEntre(pm.ini, temHoje ? h : ontem), restantes = uteisEntre(temHoje ? addD(h, 1) : h, pm.fim);
+  const proj = feitos ? totM.faturamento / feitos * (feitos + restantes) : 0;
+  const metaMes = metaM.cheia.faturamento, falta = Math.max(0, metaMes - totM.faturamento);
+
+  // hoje / ontem
+  const diaRef = temHoje ? h : ontem, lancDia = lanc.filter(l => l.data === diaRef && dosAtivos(l));
+  const lancUnicos = [...new Map(lancDia.map(l => [l.barbeiro_id, l])).values()];
+  const totDia = totais(lancUnicos);
+  const faltamLancar = ehDiaUtil(diaRef) ? eq.filter(b => !lancUnicos.some(l => l.barbeiro_id === b.id)) : [];
+
+  // destaques
+  const comNota = linhasM.filter(l => l.av.nota != null).sort((a, b) => b.av.nota - a.av.nota);
+  const top = comNota[0], atencao = comNota.filter(l => l.av.nivel === "bad");
+  const compFraco = (() => { const r = nota(totM, metaM).comps; const e = Object.entries(r).sort((a,b) => a[1].r - b[1].r)[0]; return e ? { k:e[0], r:e[1].r } : null; })();
+  const nvM = nivelDe(notaM);
+
+  const tile = (rot, val, sub, nv) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num ${nv || ""}">${val}</span><div class="meta"><span>${sub}</span></div></div>`;
+  const kpiMeta = (rot, real, metaAte, metaCheia, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${metaCheia > 0 ? barra(real / metaCheia, metaAte / metaCheia, metaAte / metaCheia) + `<div class="meta"><span>${pctTxt(real / metaCheia)} da meta do mês</span><span>meta ${fmt(metaCheia)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
+
+  return `${avisoNovos}
+  <section class="card"><div class="hero">
+    <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
+    <div class="hero-txt"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
+      <div class="cmp">${notaS != null ? pill(nivelDe(notaS), `Semana: ${dec1(notaS)}`) : ""}${pill(proj >= metaMes && metaMes ? "good" : "warn", `Projeção do mês ${money0(proj)}`)}${varAnt != null ? pill(varAnt >= 0 ? "good" : "bad", `${varAnt >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(varAnt * 100))}% vs mesmo período de ${pD(antIni).toLocaleDateString("pt-BR",{month:"long"})}`) : ""}</div>
+      ${notaM == null ? `<div class="hero-dica">Sem metas para ${esc(pm.label)}. Defina em Metas do mês para a nota aparecer.</div>`
+        : `<div class="hero-dica ${nvM}">${nvM === "good" ? "Mantenha as metas visíveis e reconheça quem está puxando o resultado." : compFraco ? `O que mais pesa na nota é ${COMP_NOME[compFraco.k].toLowerCase()} (${pctTxt(compFraco.r)} do esperado até hoje). ${DICAS[compFraco.k][nivelDe(Math.min(10, compFraco.r * 9))]}` : ""}</div>`}
+    </div></div></section>
+
+  <div class="kpis">
+    ${kpiMeta("Faturamento do mês", totM.faturamento, metaM.faturamento, metaM.cheia.faturamento, money0)}
+    ${tile("Falta para a meta", money0(falta), restantes ? `${money0(falta / restantes)} por dia · ${restantes} dias` : "mês encerrado", falta ? "" : "good")}
+    ${kpiMeta("Serviços extras", totM.extras, metaM.extras, metaM.cheia.extras, money0)}
+    ${kpiMeta("Assinaturas", totM.assinaturas, metaM.assinaturas, metaM.cheia.assinaturas, int)}
+    ${kpiMeta("Produtos", totM.produtos, metaM.produtos, metaM.cheia.produtos, money0)}
+    ${tile("Ticket médio", money(totM.ticket), `${int(totM.atendimentos)} atendimentos no mês`)}
+  </div>
+
+  <div class="grid g2">
+    <section class="card"><div class="row"><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))}</span></div>
+      ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Atendimentos</span><div class="num">${int(totDia.atendimentos)}</div></div><div><span class="lbl">Extras · assin.</span><div class="num">${money0(totDia.extras)} · ${int(totDia.assinaturas)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
+      ${faltamLancar.length ? `<div class="hero-dica warn">Falta lançar: ${faltamLancar.map(b => esc(primeiroNome(b.nome))).join(", ")}.</div>` : ehDiaUtil(diaRef) ? `<div class="hero-dica good">Todos lançaram.</div>` : `<p class="sm muted" style="margin:8px 0 0">Dia de folga.</p>`}
+    </section>
+    <section class="card"><h2>Destaques do mês</h2><div class="list" style="margin-top:6px">
+      ${top ? `<div class="li"><span>${pill("good", "Melhor nota")} <b>${esc(top.b.nome)}</b></span><span class="nb good">${dec1(top.av.nota)}</span></div>` : ""}
+      ${atencao.length ? atencao.map(l => `<div class="li" data-act="abrir" data-v="${l.b.id}" style="cursor:pointer"><span>${pill("bad", "Atenção")} <b>${esc(l.b.nome)}</b></span><span class="nb bad">${dec1(l.av.nota)}</span></div>`).join("") : comNota.length ? `<div class="li"><span class="sm muted">Ninguém com nota ruim no mês.</span></div>` : `<div class="li"><span class="sm muted">Sem notas ainda: defina as metas do mês.</span></div>`}
+    </div></section>
+  </div>
+
+  <section class="card"><div class="row"><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = meta</span></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
+
+  <section class="card"><div class="row"><h2>Nota de cada barbeiro</h2><button class="link" data-tab="equipe">Ver ranking completo</button></div>
+    <div class="list" style="margin-top:6px">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="li" data-act="abrir" data-v="${b.id}" style="cursor:pointer"><div style="flex:1;min-width:0"><div class="row"><b>${esc(b.nome)}</b><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></div>
+      <div class="bar ${av.nivel || ""}" style="margin-top:6px"><span style="width:${av.nota == null ? 0 : av.nota * 10}%"></span></div><div class="xs muted" style="margin-top:4px">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</div></div></div>`).join("")}</div></section>
+  ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm))}`;
+}
+function graficoAcumulado(lista, linhas, p){
+  const el = document.getElementById("chAcum"); if (!el || !window.Chart) return;
+  const h = today(), labels = [], real = [], meta = [];
+  let ac = 0, am = 0;
+  for (let d = p.ini; d <= p.fim; d = addD(d, 1)) {
+    labels.push(dataBR(d));
+    am += linhas.reduce((s, l) => s + metaNoIntervalo(metasDe(l.b.id), d, d).faturamento, 0);
+    meta.push(Math.round(am));
+    if (d <= h) { ac += lista.filter(l => l.data === d).reduce((s, l) => s + (+l.servicos||0) + (+l.extras||0) + (+l.produtos||0), 0); real.push(Math.round(ac)); } else real.push(null);
+  }
+  charts.push(new Chart(el, {
+    type:"line",
+    data:{ labels, datasets:[
+      { label:"Equipe", data:real, borderColor:corVar("--accent"), backgroundColor:corVar("--accent-soft"), fill:true, pointRadius:0, borderWidth:3, tension:.2, order:1 },
+      { label:"Meta", data:meta, borderColor:corVar("--muted"), borderDash:[5,4], pointRadius:0, borderWidth:2, order:2 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, animation:false, interaction:{ mode:"index", intersect:false },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${money0(c.raw)}` } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:corVar("--muted"), maxRotation:0, autoSkip:true, maxTicksLimit:8 } },
                y:{ beginAtZero:true, grid:{ color:corVar("--line") }, ticks:{ color:corVar("--muted"), callback:v => v >= 1000 ? (v/1000).toLocaleString("pt-BR") + " mil" : v } } } }
   }));
 }
@@ -915,7 +1020,7 @@ async function pgAjustes(){
 }
 
 /* ======================= RENDER ======================= */
-const PAGINAS = { equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -1019,7 +1124,7 @@ const ACOES = {
 };
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-tab],[data-act]"); if (!t) return;
-  if (t.dataset.tab) { if (t.dataset.tab === "equipe") S.ver = null; ir(t.dataset.tab); return; }
+  if (t.dataset.tab) { if (t.dataset.tab === "equipe" || t.dataset.tab === "dashboard") S.ver = null; ir(t.dataset.tab); return; }
   const fn = ACOES[t.dataset.act]; if (!fn) return;
   if (t.tagName === "BUTTON") t.disabled = true;
   try { await fn(t.dataset.v); } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
@@ -1095,7 +1200,7 @@ async function iniciar(){
   if (!me.ativo) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", "Esta conta está desativada. Fale com o admin."); }
   S.me = me;
   await carregarBase();
-  S.tab = S.me.papel === "admin" ? "equipe" : "painel";
+  S.tab = S.me.papel === "admin" ? "dashboard" : "painel";
   $("#authRoot").hidden = true; $("#app").hidden = false;
   if (DEMO) { const b = $("#demoband"); b.hidden = false; b.innerHTML = `Modo demonstração · dados fictícios<button data-act="sair">Trocar conta</button>`; }
   render();

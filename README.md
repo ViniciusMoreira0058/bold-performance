@@ -6,6 +6,7 @@ Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (fat
 
 | Tela | Quem vê | O que faz |
 |---|---|---|
+| **Dashboard** | Admin (primeira tela) | Nota geral da equipe no mês e na semana, projeção do mês, comparação com o mesmo período do mês anterior, faturamento/extras/assinaturas/produtos contra a meta, quanto falta por dia, resultado de hoje (ou ontem) e quem falta lançar, destaques, faturamento acumulado x meta e nota de cada barbeiro |
 | **Equipe** | Admin | Nota da equipe, totais contra a meta, ranking dos barbeiros com nota, faturamento, % da meta, extras, assinaturas, produtos, atendimentos e ticket; linha de média; gráfico de faturamento por barbeiro; alerta de quem está com nota ruim |
 | **Painel do barbeiro** | Barbeiro (o próprio) e admin (qualquer um) | Nota do período com velocímetro, frase de diagnóstico, indicadores contra a meta e contra a média da equipe, dicas, gráfico de evolução, meta do mês com projeção e quanto falta por dia, tabela "você x equipe" |
 | **Filtros de período** | Todos | Diário, semanal, quinzenal, mensal, trimestral, semestral e anual, com navegação para períodos anteriores |
