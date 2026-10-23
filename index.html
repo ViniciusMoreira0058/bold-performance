@@ -66,11 +66,11 @@ main{display:flex;flex-direction:column;gap:16px;padding:6px max(16px,env(safe-a
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#000;border-top:1px solid #1c1c1c;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
 .bottom button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;color:#8a8a8a;font:600 11px var(--body);padding:6px 2px;border-radius:8px;cursor:pointer;min-width:0}
 .bottom button[aria-current="page"]{color:var(--accent)}
-/* rodapé sem fundo: só o velocímetro flutuando */
-.bottom{justify-content:center;align-items:center;background:none;border-top:0;pointer-events:none}
+/* rodapé sem fundo: só o velocímetro flutuando no canto direito */
+.bottom{justify-content:flex-end;align-items:center;background:none;border-top:0;pointer-events:none}
 .bottom .bnav-marca{pointer-events:auto}
 .bottom{padding:0 6px env(safe-area-inset-bottom,0px);height:calc(48px + env(safe-area-inset-bottom,0px))}
-.bottom .bnav-marca{flex:0 0 auto;display:grid;place-items:center;height:48px;padding:0 34px;margin:0 auto;color:var(--accent)}
+.bottom .bnav-marca{flex:0 0 auto;display:grid;place-items:center;height:48px;padding:0 14px 0 24px;margin:0;color:var(--accent)}
 .bottom .bnav-marca .sym{display:block}
 .bottom .bnav-marca .sym{width:44px;height:auto;filter:drop-shadow(0 2px 6px rgba(0,0,0,.8)) drop-shadow(0 0 12px rgba(255,117,31,.35))}
 .bottom .bnav-marca:active .sym{transform:scale(.94)}
