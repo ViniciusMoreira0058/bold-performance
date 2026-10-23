@@ -1257,7 +1257,7 @@ async function pgLancar(){
     <select data-ch="lancBarb" aria-label="Barbeiro">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></div>
     <div class="list" style="margin-top:8px">
     ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod. · ${money0(t.assinatura_rs)} assin.)</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
-  </div></section>
+  </div>${hist.length ? `<div class="actions"><button class="btn danger" data-act="apagarMes">Apagar o mês de ${esc(primeiroNome(nomeDe(bid)))}</button></div>` : ""}</section>
   ${cardImportar()}`;
 }
 
@@ -1459,6 +1459,13 @@ const ACOES = {
     }
     if (!salvar.length) return toast("Nada mudou.");
     await DB.salvarLancs(salvar); toast(`Valores até ${dataBR(d)} salvos.`); render();
+  },
+  async apagarMes(){
+    const bid = S.lancBarb, mi = mesIni(S.lancData), ls = await DB.lancamentos(mi, mesFim(mi), bid);
+    if (!ls.length) return toast("Nada para apagar.");
+    if (!await confirmar(`Apagar todas as ${ls.length} atualizações de ${nomeDe(bid)} em ${mesNome(mi).toLowerCase()}? Não tem como desfazer.`)) return;
+    for (const l of ls) await DB.excluirLanc(bid, l.data);
+    toast("Mês apagado."); render();
   },
   async excluirDia(d){
     const bid = S.lancBarb;
