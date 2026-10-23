@@ -763,6 +763,33 @@ function gaugeSVG(n){
   </svg>`;
 }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
+// velocímetro da meta: arco preenchido até o % faturado, marca de onde deveria estar hoje, "falta" no centro
+function cardFalta(titulo, real, meta, esperado, restantes, extra){
+  const r = meta ? real / meta : 0, f = Math.max(0, Math.min(1, r)), falta = Math.max(0, meta - real), bateu = real >= meta && meta > 0;
+  const cx = 130, cy = 128, R = 100, pt = a => [(cx + R * Math.cos(a)).toFixed(1), (cy - R * Math.sin(a)).toFixed(1)];
+  const arco = fr => { const [x, y] = pt(Math.PI * (1 - fr)); return `M${cx - R},${cy} A${R},${R} 0 0 1 ${x},${y}`; };
+  const q = esperado ? r / esperado : r, nv = bateu || q >= .95 ? "good" : q >= .8 ? "warn" : "bad";
+  const cor = { good:"var(--good)", warn:"var(--warn)", bad:"var(--bad)" }[nv];
+  const ae = Math.PI * (1 - Math.max(0, Math.min(1, esperado || 0))), mk = [[R - 16, R + 16]].map(([a, b]) => [cx + a*Math.cos(ae), cy - a*Math.sin(ae), cx + b*Math.cos(ae), cy - b*Math.sin(ae)].map(v => v.toFixed(1)))[0];
+  const an = Math.PI * (1 - f), [nx, ny] = [cx + (R - 30) * Math.cos(an), cy - (R - 30) * Math.sin(an)];
+  const deveria = esperado ? meta * esperado : 0;
+  return `<section class="card"><div class="row"><h2>${titulo}</h2>${pill(nv, bateu ? "Meta batida" : `${pctTxt(r)} da meta`)}</div>
+    <div style="max-width:320px;margin:6px auto 0;position:relative">
+      <svg viewBox="0 0 260 150" role="img" aria-label="${pctTxt(r)} da meta de faturamento">
+        <path d="${arco(1)}" fill="none" stroke="var(--off)" stroke-width="18" stroke-linecap="round"/>
+        ${f > 0 ? `<path d="${arco(f)}" fill="none" stroke="${cor}" stroke-width="18" stroke-linecap="round"/>` : ""}
+        ${esperado && !bateu ? `<line x1="${mk[0]}" y1="${mk[1]}" x2="${mk[2]}" y2="${mk[3]}" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>` : ""}
+        <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--accent)" stroke-width="5" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="8" fill="var(--accent)"/>
+        <text x="${cx - R}" y="${cy + 20}" text-anchor="middle" fill="var(--muted)" font-size="10">0</text><text x="${cx + R}" y="${cy + 20}" text-anchor="middle" fill="var(--muted)" font-size="10">${esc(money0(meta).replace(/\s/g, " "))}</text>
+      </svg></div>
+    <div style="text-align:center;margin-top:-4px"><span class="lbl">${bateu ? "Passou da meta" : "Falta para a meta"}</span><div class="num ${bateu ? "good" : "acc"}" style="font-size:34px">${money0(bateu ? real - meta : falta)}</div>
+      <span class="sm muted">${money0(real)} faturados de ${money0(meta)}</span></div>
+    <div class="calc-out">
+      <div><span class="lbl">Por dia</span><div class="num">${bateu ? "—" : restantes ? money0(falta / restantes) : "—"}</div><span class="xs muted">${restantes} dia${restantes === 1 ? "" : "s"} de trabalho restante${restantes === 1 ? "" : "s"}</span></div>
+      ${deveria ? `<div><span class="lbl">Deveria estar em</span><div class="num ${real >= deveria ? "good" : "bad"}">${money0(deveria)}</div><span class="xs muted">até hoje (traço no velocímetro)</span></div>` : ""}
+      ${extra || ""}
+    </div></section>`;
+}
 function barra(r, marca, ritmo){
   const q = ritmo ? r / ritmo : r, nv = r == null ? "n" : q >= .89 ? "good" : q >= .67 ? "warn" : "bad";
   const x = Math.max(0, Math.min(1, r || 0)) * 5;
@@ -830,6 +857,7 @@ async function pgPainel(){
         ${av.t.dias ? pill("n", `Atualizado até ${dataBR(doPer.map(l => l.data).sort().at(-1))}`) : pill("bad", "Nenhum lançamento no período")}
         ${pill("n", `Ganho estimado ${money0(ganho)}`)}</div>
     </div></div></section>
+  ${ritmo}
   ${S.me.papel === "admin" ? cardEditarMeta(perfil) : ""}
   <div class="kpis">
     ${kpi("Faturamento", money0(av.t.faturamento), av.t.faturamento, av.meta.faturamento, media && media.faturamento, money0)}
@@ -841,7 +869,6 @@ async function pgPainel(){
   ${dicas.length ? `<section class="card"><h2>Dicas para o período</h2><span class="sm muted">${nivel === "good" ? "Para manter e melhorar" : nivel === "warn" ? "Para sair do médio" : "Para virar o jogo"}</span>
     <div class="dicas">${dicas.map((d,i) => `<div class="dica"><i>${i+1}</i><div><b>${esc(d.t)}</b><span>${esc(d.s)}</span></div></div>`).join("")}</div></section>` : ""}
   ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Evolução</h2><span class="xs muted">barras = faturamento · linha = meta</span></div><div class="chart-box"><canvas id="chEvo"></canvas></div></section>` : ""}
-  ${ritmo}
   ${tabela}
   ${S.me.papel === "admin" ? `<div class="actions"><button class="btn" data-act="verComo" data-v="${id}">Ver como ${esc(primeiroNome(perfil.nome))} vê</button><button class="btn sec" data-act="lancarPara" data-v="${id}">Atualizar ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
   ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
@@ -854,21 +881,9 @@ function cardRitmo(lancMes, metasB, perfil){
   const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1));
   const proj = feitos ? t.faturamento / feitos * (feitos + restantes) : 0;
   if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Meta do barbeiro." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
-  const falta = k => Math.max(0, (+m[k]||0) - t[k]);
-  const ticket = t.ticket || (+perfil.ticket_medio || 0);
-  const porDia = restantes ? falta("faturamento") / restantes : 0;
   const esperado = feitos / ((feitos + restantes) || 1);
-  const linha = (rot, real, meta, fmt) => `<div><div class="row sm"><span>${rot}</span><span><b>${fmt(real)}</b> <span class="muted">de ${fmt(meta)}</span></span></div>${barra(meta ? real/meta : 0, esperado, esperado)}</div>`;
-  return `<section class="card"><div class="row"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2>${pill(proj >= +m.faturamento ? "good" : "warn", `Projeção ${money0(proj)}`)}</div>
-    <span class="xs muted">A marca em cada barra mostra onde você deveria estar hoje.</span>
-    <div class="grid" style="margin-top:10px">
-      ${linha("Faturamento", t.faturamento, +m.faturamento, money0)}
-    </div>
-    <div class="calc-out">
-      <div><span class="lbl">Falta faturar</span><div class="num">${money0(falta("faturamento"))}</div></div>
-      <div><span class="lbl">Dias de trabalho</span><div class="num">${restantes}</div><span class="xs muted">restantes no mês</span></div>
-      <div><span class="lbl">Por dia</span><div class="num">${money0(porDia)}</div>${ticket && porDia ? `<span class="xs muted">≈ ${dec1(porDia / ticket)} atendimentos/dia</span>` : ""}</div>
-    </div></section>`;
+  return cardFalta(`Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}`, t.faturamento, +m.faturamento, esperado, restantes,
+    `<div><span class="lbl">Projeção</span><div class="num ${proj >= +m.faturamento ? "good" : "warn"}">${money0(proj)}</div><span class="xs muted">no ritmo atual</span></div>`);
 }
 
 // executa depois que o HTML entra na página (gráficos)
@@ -955,6 +970,8 @@ async function pgDashboard(){
         : `<div class="hero-dica ${nvM}">${nvM === "good" ? "Mantenha as metas visíveis e reconheça quem está puxando o resultado." : compFraco ? `O que mais pesa na nota é ${COMP_NOME[compFraco.k].toLowerCase()} (${pctTxt(compFraco.r)} do esperado até hoje). ${DICAS[compFraco.k][nivelDe(Math.min(10, compFraco.r * 9))]}` : ""}</div>`}
     </div></div></section>
 
+  ${metaMes ? cardFalta(mLoja ? "Meta da barbearia" : "Meta do mês da equipe", fatBase, metaMes, metaAteLoja / metaMes, restantes,
+      `<div><span class="lbl">Projeção</span><div class="num ${projBase >= metaMes ? "good" : "warn"}">${money0(projBase)}</div><span class="xs muted">no ritmo atual</span></div>`) : ""}
   <div class="kpis">
     ${kpiMeta(mLoja ? "Faturamento da barbearia" : "Faturamento do mês", fatBase, metaAteLoja, metaMes, money0)}
     ${tile("Falta para a meta", money0(falta), restantes ? `${money0(falta / restantes)} por dia · ${restantes} dias` : "mês encerrado", falta ? "" : "good")}
