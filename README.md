@@ -15,7 +15,7 @@ Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (fat
 | **Lançamentos** | Só o admin (para qualquer barbeiro) | Importar o relatório de comandas do CashBarber (CSV): atendimentos, valor das comandas e assinaturas novas por barbeiro e dia, com conferência antes de salvar; botão de excluir em cada dia dos últimos 7; Atendimentos, serviços R$, extras R$ e quantidade, assinaturas novas, produtos R$ e observação; últimos 7 dias |
 | **Minha meta** | Barbeiro (só vê) | Meta de ganho definida pelo admin → faturamento necessário no mês, por dia, por semana e atendimentos por dia; quanto já ganhou; onde pode chegar (ritmo atual, batendo a meta, passando 20%) |
 | **Histórico** | Barbeiro | Lançamentos dos últimos 60 dias |
-| **Barbeiros** | Admin | Cadastro por e-mail, comissões (serviços e produtos), desativar/reativar |
+| **Barbeiros** | Admin | Cadastrar barbeiro (nome e e-mail opcional) antes de ele criar o login: já dá para lançar, importar e definir metas; quando ele cria a conta com o mesmo e-mail, liga ao cadastro com todo o histórico. Aprovar novos cadastros, comissões, desativar/reativar |
 | **Ajustes** | Todos | Nome da barbearia e dias de trabalho (admin), tema claro/escuro, trocar senha |
 
 ## Como a nota é calculada
@@ -37,7 +37,7 @@ Enquanto `SUPABASE_URL` estiver vazio no topo do `index.html`, o app abre em mod
 2. **index.html**: preencha `SUPABASE_URL` e `SUPABASE_KEY` (Project Settings → API, chave *publishable/anon*). Nunca coloque a *secret key*.
 3. **Vercel**: Add New → Project → importe o repositório → Deploy (site estático, sem configuração).
 4. **Supabase → Authentication → URL Configuration**: adicione a URL da Vercel em **Redirect URLs**. Se o projeto for o mesmo do HABITAH, **não troque o Site URL** (ele continua sendo o do HABITAH); basta incluir a URL do Bold na lista de Redirect URLs.
-5. Rode também `supabase/002_cadastro_livre.sql`, `supabase/003_fotos.sql` (fotos de perfil), `supabase/004_so_admin_lanca.sql` (só o admin lança; o barbeiro só vê) `supabase/005_meta_barbearia.sql` (meta geral da barbearia) e `supabase/006_so_admin_metas.sql` (só o admin define o ganho desejado). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
+5. Rode também `supabase/002_cadastro_livre.sql`, `supabase/003_fotos.sql` (fotos de perfil), `supabase/004_so_admin_lanca.sql` (só o admin lança; o barbeiro só vê) `supabase/005_meta_barbearia.sql` (meta geral da barbearia) `supabase/006_so_admin_metas.sql` (só o admin define o ganho desejado) e `supabase/007_cadastro_sem_login.sql` (cadastrar barbeiro antes de ele criar o login). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
 
 ## Segurança
 

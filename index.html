@@ -422,6 +422,11 @@ const cloud = {
   async convites(){ const { data, error } = await sb.from("convites").select("*").order("criado_em"); if (error) throw error; return data; },
   async salvarConvite(c){ const { error } = await sb.from("convites").upsert({ ...c, email:c.email.toLowerCase() }); if (error) throw error; },
   async excluirConvite(email){ const { error } = await sb.from("convites").delete().eq("email", email); if (error) throw error; },
+  async cadastrarBarbeiro(c){
+    const { error } = await sb.from("equipe").insert({ id:crypto.randomUUID(), nome:c.nome, email:c.email || null, papel:"barbeiro", aprovado:true, ativo:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos });
+    if (error) throw new Error(/foreign key|tem_login/i.test(error.message) ? "Falta rodar o arquivo 007_cadastro_sem_login.sql no Supabase." : error.message);
+  },
+  async excluirBarbeiro(id){ const { error } = await sb.from("equipe").delete().eq("id", id).eq("tem_login", false); if (error) throw error; },
   async metas(){ const { data, error } = await sb.from("metas").select("*"); if (error) throw error; return data; },
   async metasLoja(){ const { data, error } = await sb.from("metas_barbearia").select("*"); if (error) { console.warn(error); return []; } return data; },
   async salvarMetaLoja(mes, faturamento){ const { error } = await sb.from("metas_barbearia").upsert({ mes, faturamento, atualizado_em:new Date().toISOString() }); if (error) throw new Error(/metas_barbearia/.test(error.message) ? "Falta rodar o arquivo 005_meta_barbearia.sql no Supabase." : error.message); },
@@ -490,6 +495,8 @@ const demo = {
     demoSave();
   },
   async excluirConvite(email){ const db = demoLoad(); db.convites = db.convites.filter(x => x.email !== email); demoSave(); },
+  async cadastrarBarbeiro(c){ demoLoad().equipe.push({ id:"b" + Date.now(), nome:c.nome, email:c.email || null, papel:"barbeiro", ativo:true, aprovado:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos, ganho_desejado:0, ticket_medio:0 }); demoSave(); },
+  async excluirBarbeiro(id){ const db = demoLoad(); db.equipe = db.equipe.filter(e => e.id !== id); db.lanc = db.lanc.filter(l => l.barbeiro_id !== id); db.metas = db.metas.filter(m => m.barbeiro_id !== id); demoSave(); },
   async metas(){ const me = await demo.me(); return demoLoad().metas.filter(m => me.papel === "admin" || m.barbeiro_id === me.id).map(m => ({...m})); },
   async metasLoja(){ return (demoLoad().metasLoja || []).map(m => ({...m})); },
   async salvarMetaLoja(mes, faturamento){ const db = demoLoad(); db.metasLoja = (db.metasLoja || []).filter(m => m.mes !== mes).concat({ mes, faturamento }); demoSave(); },
@@ -1280,11 +1287,11 @@ async function pgBarbeiros(){
   S.convites = await DB.convites();
   const pend = S.convites.filter(c => !S.equipe.some(e => (e.email || "").toLowerCase() === c.email.toLowerCase()));
   $("#psub").textContent = "Contas da equipe, comissões e convites";
-  const card = b => `<div class="li"><div class="who" style="min-width:0"><label class="av-edit" title="Trocar foto">${avatar(b)}<input type="file" accept="image/*" data-ch="foto" data-id="${b.id}" aria-label="Trocar foto de ${esc(b.nome)}"></label><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
-    <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
+  const card = b => `<div class="li"><div class="who" style="min-width:0"><label class="av-edit" title="Trocar foto">${avatar(b)}<input type="file" accept="image/*" data-ch="foto" data-id="${b.id}" aria-label="Trocar foto de ${esc(b.nome)}"></label><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")} ${b.tem_login === false ? pill("warn", "sem login") : ""}<div class="xs muted">${b.tem_login === false ? (b.email ? `Liga sozinho quando criar a conta com ${esc(b.email)}` : "Sem e-mail: preencha para ele conseguir entrar") : esc(b.email || "")}</div></div></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">${b.tem_login === false ? `<label class="f" style="width:220px">E-mail do barbeiro<input type="email" inputmode="email" autocomplete="off" data-perfil="${b.id}" data-k="email" value="${esc(b.email || "")}" placeholder="email@exemplo.com"></label>` : ""}<label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
-    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button></div></div>`;
+    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.tem_login === false ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end">Excluir</button>` : ""}</div></div>`;
   const novos = pendentes();
   const novoCard = b => `<div class="li"><div class="who" style="min-width:0">${avatar(b)}<div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
@@ -1293,10 +1300,10 @@ async function pgBarbeiros(){
     <button class="btn danger sm" data-act="recusar" data-v="${b.id}" style="align-self:flex-end">Recusar</button></div></div>`;
   return `${novos.length ? `<section class="card" style="border-color:var(--accent)"><h2>Novos cadastros</h2><span class="sm muted">Criaram a conta pelo app. Confira a comissão e aprove para eles entrarem no ranking e começarem a lançar.</span><div class="list">${novos.map(novoCard).join("")}</div></section>` : ""}
   <section class="card"><div class="row"><div><h2>Link para os barbeiros</h2><span class="sm muted">Mande este link. O barbeiro toca em <b>Criar conta</b> e aparece aqui para você aprovar.</span></div><button class="btn" data-act="copiarLink">Copiar link do app</button></div></section>
-  <section class="card"><h2>Cadastrar pelo e-mail</h2><span class="sm muted">Opcional. Se você cadastrar o e-mail antes, o barbeiro já entra aprovado e com a comissão certa quando criar a conta.</span>
+  <section class="card"><h2>Cadastrar barbeiro</h2><span class="sm muted">Ele entra na equipe na hora: dá para lançar, importar a planilha e definir metas antes de ele criar o login. Quando ele criar a conta com o mesmo e-mail, vê todo o histórico.</span>
     <div class="fgrid" style="margin-top:12px">
       <label class="f">Nome<input id="n-nome" placeholder="Nome do barbeiro"></label>
-      <label class="f">E-mail<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
+      <label class="f">E-mail (opcional)<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
       <label class="f">Comissão serviços %<input id="n-cs" inputmode="decimal" value="50"></label>
       <label class="f">Comissão produtos %<input id="n-cp" inputmode="decimal" value="10"></label>
     </div><div class="actions"><button class="btn" data-act="convidar">Cadastrar</button></div></section>
@@ -1419,17 +1426,25 @@ const ACOES = {
   async tirarFoto(v){ await DB.salvarPerfil(v, { foto_url:null }); await recarregarEquipe(); toast("Foto removida."); render(); },
   async convidar(){
     const nome = $("#n-nome").value.trim(), email = $("#n-email").value.trim().toLowerCase();
-    if (!nome || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && !(DEMO && /@/.test(email))) return toast("Preencha nome e um e-mail válido.");
-    await DB.salvarConvite({ email, nome, papel:"barbeiro", comissao_servicos:parseNum($("#n-cs").value), comissao_produtos:parseNum($("#n-cp").value) });
+    if (!nome) return toast("Preencha o nome do barbeiro.");
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Esse e-mail não parece válido.");
+    if (email && S.equipe.some(e => (e.email || "").toLowerCase() === email)) return toast("Já existe alguém com esse e-mail.");
+    await DB.cadastrarBarbeiro({ nome, email, comissao_servicos:parseNum($("#n-cs").value), comissao_produtos:parseNum($("#n-cp").value) });
     S.equipe = await DB.equipe();
-    toast(DEMO ? `${nome} cadastrado.` : `${nome} cadastrado. Mande o link do app para ele criar a conta.`); render();
+    toast(`${nome} cadastrado. Já dá para lançar e importar para ele.`); render();
+  },
+  async excluirBarbeiro(v){
+    if (!await confirmar(`Excluir o cadastro de ${nomeDe(v)}? Os lançamentos e metas dele também serão apagados.`)) return;
+    await DB.excluirBarbeiro(v); S.equipe = await DB.equipe(); S.metas = await DB.metas(); toast("Cadastro excluído."); render();
   },
   async excluirConvite(v){ if (!await confirmar("Cancelar este convite?")) return; await DB.excluirConvite(v); render(); },
   copiarLink(){ const url = location.origin + location.pathname; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast("Link copiado."), () => toast("Link do app: " + url)); },
   async salvarPerfil(v){
     const g = k => document.querySelector(`[data-perfil="${v}"][data-k="${k}"]`).value;
-    await DB.salvarPerfil(v, { comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) });
-    S.equipe = await DB.equipe(); toast("Comissão salva.");
+    const em = document.querySelector(`[data-perfil="${v}"][data-k="email"]`), campos = { comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) };
+    if (em) { const e = em.value.trim().toLowerCase(); if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("Esse e-mail não parece válido."); campos.email = e || null; }
+    await DB.salvarPerfil(v, campos);
+    S.equipe = await DB.equipe(); toast("Salvo.");
   },
   async ativo(v){
     const b = S.equipe.find(e => e.id === v);
