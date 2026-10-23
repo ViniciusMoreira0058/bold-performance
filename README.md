@@ -10,9 +10,9 @@ Performance dos barbeiros. O admin define as metas do mês de cada barbeiro (fat
 | **Equipe** | Admin | Nota da equipe, totais contra a meta, ranking dos barbeiros com nota, faturamento, % da meta, extras, assinaturas, produtos, atendimentos e ticket; linha de média; gráfico de faturamento por barbeiro; alerta de quem está com nota ruim |
 | **Painel do barbeiro** | Barbeiro (o próprio) e admin (qualquer um) | Nota do período com velocímetro, frase de diagnóstico, indicadores contra a meta e contra a média da equipe, dicas, gráfico de evolução, meta do mês com projeção e quanto falta por dia, tabela "você x equipe" |
 | **Filtros de período** | Todos | Diário, semanal, quinzenal, mensal, trimestral, semestral e anual, com navegação para períodos anteriores |
-| **Metas do mês** | Admin | Metas por barbeiro e por mês; copiar do mês anterior; repetir a 1ª linha para todos |
+| **Metas do mês** | Admin | Metas por barbeiro e por mês, e quanto cada barbeiro deseja ganhar; copiar do mês anterior; repetir a 1ª linha para todos |
 | **Lançar dia** | Só o admin (para qualquer barbeiro) | Meta de faturamento geral da barbearia no mês (aparece no Dashboard no lugar da soma das metas dos barbeiros); Atendimentos, serviços R$, extras R$ e quantidade, assinaturas novas, produtos R$ e observação; últimos 7 dias |
-| **Minha meta** | Barbeiro | Quanto quer ganhar → faturamento necessário no mês, por dia, por semana e atendimentos por dia, usando a comissão e o ticket médio |
+| **Minha meta** | Barbeiro (só vê) | Meta de ganho definida pelo admin → faturamento necessário no mês, por dia, por semana e atendimentos por dia; quanto já ganhou; onde pode chegar (ritmo atual, batendo a meta, passando 20%) |
 | **Histórico** | Barbeiro | Lançamentos dos últimos 60 dias |
 | **Barbeiros** | Admin | Cadastro por e-mail, comissões (serviços e produtos), desativar/reativar |
 | **Ajustes** | Todos | Nome da barbearia e dias de trabalho (admin), tema claro/escuro, trocar senha |
@@ -36,7 +36,7 @@ Enquanto `SUPABASE_URL` estiver vazio no topo do `index.html`, o app abre em mod
 2. **index.html**: preencha `SUPABASE_URL` e `SUPABASE_KEY` (Project Settings → API, chave *publishable/anon*). Nunca coloque a *secret key*.
 3. **Vercel**: Add New → Project → importe o repositório → Deploy (site estático, sem configuração).
 4. **Supabase → Authentication → URL Configuration**: adicione a URL da Vercel em **Redirect URLs**. Se o projeto for o mesmo do HABITAH, **não troque o Site URL** (ele continua sendo o do HABITAH); basta incluir a URL do Bold na lista de Redirect URLs.
-5. Rode também `supabase/002_cadastro_livre.sql`, `supabase/003_fotos.sql` (fotos de perfil), `supabase/004_so_admin_lanca.sql` (só o admin lança; o barbeiro só vê) e `supabase/005_meta_barbearia.sql` (meta geral da barbearia). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
+5. Rode também `supabase/002_cadastro_livre.sql`, `supabase/003_fotos.sql` (fotos de perfil), `supabase/004_so_admin_lanca.sql` (só o admin lança; o barbeiro só vê) `supabase/005_meta_barbearia.sql` (meta geral da barbearia) e `supabase/006_so_admin_metas.sql` (só o admin define o ganho desejado). Depois entre com o seu e-mail (o mesmo login do HABITAH) e mande o link do app para os barbeiros: cada um toca em **Criar conta** e aparece para você em **Novos cadastros**, aguardando aprovação. Se preferir, cadastre o e-mail antes em **Barbeiros**: aí ele já entra aprovado.
 
 ## Segurança
 

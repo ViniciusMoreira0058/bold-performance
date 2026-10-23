@@ -1025,7 +1025,8 @@ async function pgMetas(){
   const linha = b => { const x = S.metas.find(y => y.barbeiro_id === b.id && String(y.mes).slice(0,10) === m) || {};
     const f = (k, rot, modo) => `<label class="f">${rot}<input inputmode="${modo || "decimal"}" data-k="${k}" value="${modo ? (x[k] || "") : numIn(x[k])}" placeholder="0"></label>`;
     return `<div class="mrow" data-b="${b.id}"><div><b>${esc(b.nome)}</b> <span class="xs muted">comissão ${numIn(b.comissao_servicos) || 0}% serviços · ${numIn(b.comissao_produtos) || 0}% produtos</span></div>
-      <div class="mgrid">${f("faturamento", "Faturamento R$")}${f("extras", "Extras R$")}${f("assinaturas", "Assinaturas", "numeric")}${f("produtos", "Produtos R$")}</div></div>`; };
+      <div class="mgrid">${f("faturamento", "Faturamento R$")}${f("extras", "Extras R$")}${f("assinaturas", "Assinaturas", "numeric")}${f("produtos", "Produtos R$")}
+        <label class="f">Quanto deseja ganhar R$<input inputmode="decimal" data-g="1" value="${numIn(+b.ganho_desejado || 0)}" placeholder="0"><span class="xs muted" style="font-weight:500">vale para todos os meses</span></label></div></div>`; };
   const u = uteisNoMes(m);
   return `<div class="pnav"><button class="icon-btn" data-act="metaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="metaMes" data-v="1" aria-label="Próximo mês">›</button></div>
   <section class="card"><div class="row"><h2>Metas de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}</h2><span class="sm muted">${u} dias de trabalho no mês</span></div>
@@ -1092,20 +1093,27 @@ async function pgCalc(){
   const taxa = (1 - mixProd) * cs + mixProd * cp;
   const ticket = +me.ticket_medio || t.ticket || 0;
   const ganho = +me.ganho_desejado || 0;
-  const u = uteisNoMes(h);
-  const fatNec = taxa ? ganho / taxa : 0;
-  const m = metasDe(me.id).find(x => String(x.mes).slice(0,10) === mesIni(h));
-  $("#psub").textContent = "Quanto você quer ganhar e o que precisa fazer para chegar lá";
-  return `<section class="card"><h2>Quanto você quer ganhar no mês?</h2>
-    <span class="sm muted">Sua comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos (definida pelo admin).</span>
-    <div class="fgrid" style="margin-top:12px">
-      <label class="f">Ganho desejado no mês (R$)<input id="c-ganho" inputmode="decimal" value="${numIn(ganho)}" placeholder="ex.: 6000" data-in="calc"></label>
-      <label class="f">Ticket médio (R$)<input id="c-ticket" inputmode="decimal" value="${numIn(+me.ticket_medio)}" placeholder="${t.ticket ? numIn(Math.round(t.ticket*100)/100) + " (seus últimos 90 dias)" : "ex.: 55"}" data-in="calc"></label>
-    </div>
-    <div id="calcOut">${calcOut(ganho, taxa, ticket, u, m)}</div>
-    <div class="actions"><button class="btn" data-act="salvarCalc">Salvar minha meta</button></div>
+  const u = uteisNoMes(h), mi = mesIni(h);
+  const m = metasDe(me.id).find(x => String(x.mes).slice(0,10) === mi);
+  // ritmo do mês: igual ao painel (conta até hoje se hoje já foi lançado, senão até ontem)
+  const doMes = hist.filter(l => l.data >= mi), fatMes = totais(doMes).faturamento;
+  const ganhoMes = doMes.reduce((s, l) => s + ((+l.servicos||0) + (+l.extras||0)) * cs + (+l.produtos||0) * cp, 0);
+  const feitos = uteisEntre(mi, doMes.some(l => l.data === h) ? h : addD(h, -1));
+  const proj = feitos ? fatMes / feitos * u : 0;
+  const metaFat = m ? +m.faturamento || 0 : 0;
+  $("#psub").textContent = "Sua meta de ganho e onde você pode chegar no mês";
+  const linha = (rot, fat, sub) => `<div class="li"><span style="flex:1;min-width:0"><b>${rot}</b><br><span class="xs muted">${sub}</span></span><span style="text-align:right;white-space:nowrap"><b class="acc">${money0(fat * taxa)}</b><br><span class="xs muted">faturando ${money0(fat)}</span></span></div>`;
+  return `<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de ganho no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
+    ${ganho ? `${barra(ganhoMes / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoMes)} ganhos até agora · ${pctTxt(ganhoMes / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoMes))}</span></div>` : ""}
+    <div id="calcOut">${ganho ? calcOut(ganho, taxa, ticket, u, m) : `<p class="empty">O admin ainda não definiu a sua meta de ganho.</p>`}</div>
   </section>
-  <section class="card"><h3>Como a conta é feita</h3><p class="sm muted" style="margin:0">Faturamento necessário = ganho desejado ÷ comissão média (${pctTxt(taxa)}, considerando que ${pctTxt(mixProd)} do seu faturamento vem de produtos). Depois dividimos pelos ${u} dias de trabalho do mês e pelo ticket médio para chegar aos atendimentos por dia.</p></section>`;
+  <section class="card"><h2>Onde você pode chegar</h2><span class="sm muted">Quanto você ganha no mês em cada cenário (estimativa pela sua comissão).</span><div class="list" style="margin-top:8px">
+    ${proj ? linha("No ritmo atual", proj, `projeção com ${feitos} de ${u} dias de trabalho`) : ""}
+    ${metaFat ? linha("Batendo a sua meta do mês", metaFat, "meta de faturamento definida pelo admin") : ""}
+    ${metaFat ? linha("Passando 20% da meta", metaFat * 1.2, "20% acima da sua meta de faturamento") : ""}
+    ${!proj && !metaFat ? `<div class="li"><span class="sm muted">Sem lançamentos ou meta neste mês ainda.</span></div>` : ""}
+  </div></section>
+  <section class="card"><h3>Como a conta é feita</h3><p class="sm muted" style="margin:0">Faturamento necessário = meta de ganho ÷ comissão média (${pctTxt(taxa)}, considerando que ${pctTxt(mixProd)} do seu faturamento vem de produtos). Depois dividimos pelos ${u} dias de trabalho do mês e pelo ticket médio${ticket ? ` (${money(ticket)})` : ""} para chegar aos atendimentos por dia.</p></section>`;
 }
 function calcOut(ganho, taxa, ticket, u, m){
   if (!ganho || !taxa) return `<p class="empty">Preencha quanto quer ganhar para ver o faturamento necessário.</p>`;
@@ -1116,7 +1124,7 @@ function calcOut(ganho, taxa, ticket, u, m){
     <div><span class="lbl">Atendimentos por dia</span><div class="num">${ticket ? dec1(dia / ticket) : "—"}</div><span class="xs muted">${ticket ? "com ticket de " + money(ticket) : "informe o ticket médio"}</span></div>
     <div><span class="lbl">Por semana</span><div class="num">${money0(dia * CFG.dias_trabalho.length)}</div></div>
   </div>
-  ${m && +m.faturamento ? `<div class="hero-dica ${fat > +m.faturamento ? "good" : "warn"}">${fat > +m.faturamento ? `Seu objetivo está acima da meta da barbearia (${money0(m.faturamento)}). Ótimo: batendo o seu, você bate a meta.` : `A meta da barbearia para você é ${money0(m.faturamento)}, acima do que você precisa para o seu ganho. Mire na meta da barbearia: ela rende ${money0(+m.faturamento * taxa)} para você.`}</div>` : ""}`;
+  ${m && +m.faturamento ? `<div class="hero-dica ${fat > +m.faturamento ? "good" : "warn"}">${fat > +m.faturamento ? `Para esse ganho você precisa passar da meta de faturamento do mês (${money0(m.faturamento)}). Batendo a meta, você bate a meta e vai além.` : `A meta de faturamento do mês para você é ${money0(m.faturamento)}, acima do que precisa para esse ganho. Batendo a meta, você ganha ${money0(+m.faturamento * taxa)}.`}</div>` : ""}`;
 }
 
 /* ======================= PÁGINA: HISTÓRICO ======================= */
@@ -1219,7 +1227,10 @@ const ACOES = {
   metaMes: v => { S.metaMes = addM(S.metaMes, +v); render(); },
   lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
   async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
-  async salvarMetas(){ await DB.salvarMetas(lerMetas()); S.metas = await DB.metas(); toast("Metas salvas."); render(); },
+  async salvarMetas(){
+    for (const tr of document.querySelectorAll(".mrow")) { const g = parseNum(tr.querySelector("[data-g]").value), b = S.equipe.find(e => e.id === tr.dataset.b);
+      if (b && g !== (+b.ganho_desejado || 0)) { await DB.salvarPerfil(b.id, { ganho_desejado:g }); b.ganho_desejado = g; } }
+    await DB.salvarMetas(lerMetas()); S.metas = await DB.metas(); toast("Metas salvas."); render(); },
   copiarMetas(){
     const ant = addM(S.metaMes, -1);
     let n = 0;
@@ -1243,10 +1254,6 @@ const ACOES = {
   },
   async excluirLanc(){ if (!await confirmar("Excluir o lançamento deste dia?")) return; await DB.excluirLanc(S.me.papel === "admin" ? S.lancBarb : S.me.id, S.lancData); toast("Lançamento excluído."); render(); },
   async tirarFoto(v){ await DB.salvarPerfil(v, { foto_url:null }); await recarregarEquipe(); toast("Foto removida."); render(); },
-  async salvarCalc(){
-    const campos = { ganho_desejado:parseNum($("#c-ganho").value), ticket_medio:parseNum($("#c-ticket").value) };
-    await DB.salvarPerfil(S.me.id, campos); Object.assign(S.me, campos); const e = S.equipe.find(x => x.id === S.me.id); if (e) Object.assign(e, campos); toast("Meta pessoal salva.");
-  },
   async convidar(){
     const nome = $("#n-nome").value.trim(), email = $("#n-email").value.trim().toLowerCase();
     if (!nome || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && !(DEMO && /@/.test(email))) return toast("Preencha nome e um e-mail válido.");
@@ -1312,17 +1319,6 @@ document.addEventListener("change", async e => {
   if (k === "lancData") { if (!e.target.value) return; S.lancData = e.target.value > today() ? today() : e.target.value; }
   if (k === "lancBarb") S.lancBarb = e.target.value;
   render();
-});
-document.addEventListener("input", e => {
-  if (e.target.dataset.in !== "calc") return;
-  const me = S.equipe.find(x => x.id === S.me.id) || S.me;
-  const tk = parseNum($("#c-ticket").value) || parseNum($("#c-ticket").placeholder);
-  pgCalc._t && clearTimeout(pgCalc._t);
-  pgCalc._t = setTimeout(async () => {
-    const h = today(), t = totais(await DB.lancamentos(addD(h, -90), h, me.id)), mix = t.faturamento ? t.produtos / t.faturamento : .08;
-    const taxa = (1 - mix) * (+me.comissao_servicos||0) / 100 + mix * (+me.comissao_produtos||0) / 100;
-    const out = $("#calcOut"); if (out) out.innerHTML = calcOut(parseNum($("#c-ganho").value), taxa, tk || t.ticket, uteisNoMes(h), metasDe(me.id).find(x => String(x.mes).slice(0,10) === mesIni(h)));
-  }, 200);
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") menu(false); });
 
