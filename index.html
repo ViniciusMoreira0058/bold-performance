@@ -764,10 +764,10 @@ function gaugeSVG(n){
 }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
 // linha de progresso da meta de faturamento, com quanto falta em destaque (barbeiro e barbearia)
-function cardLinha(titulo, sub, real, meta, esperado, restantes, proj){
+function cardLinha(titulo, sub, real, meta, esperado, restantes, proj, oque = "faturados"){
   const falta = Math.max(0, meta - real), deveria = meta * (esperado || 0);
   return `<section class="card"><div class="card-head"><div><h2>${titulo}</h2><span class="sm muted">${sub}</span></div></div>
-    <div style="margin-top:12px">${barra(real / meta, null, esperado ? Math.max(.05, esperado) : null)}<div class="sm" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px"><span><b>${money0(real)}</b> faturados · ${pctTxt(real / meta)}</span><span class="muted">${falta ? `falta ${money0(falta)}${restantes ? ` · ${money0(falta / restantes)} por dia` : ""}` : `passou ${money0(real - meta)}`}</span></div>
+    <div style="margin-top:12px">${barra(real / meta, null, esperado ? Math.max(.05, esperado) : null)}<div class="sm" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px"><span><b>${money0(real)}</b> ${oque} · ${pctTxt(real / meta)}</span><span class="muted">${falta ? `falta ${money0(falta)}${restantes ? ` · ${money0(falta / restantes)} por dia` : ""}` : `passou ${money0(real - meta)}`}</span></div>
       <div style="text-align:center;margin-top:14px"><span class="lbl">${falta ? "Falta para bater a meta" : "Meta batida! Passou"}</span><div class="num ${falta ? "acc" : "good"}" style="font-size:32px">${money0(falta || real - meta)}</div></div>
       <div class="cmp" style="margin-top:10px;justify-content:center">${esperado ? pill(real >= deveria ? "good" : real >= deveria * .9 ? "warn" : "bad", `Esperado até agora ${money0(deveria)}`) : ""}${esperado ? pill(proj >= meta ? "good" : "warn", `Projeção ${money0(proj)}`) : ""}</div></div></section>`;
 }
@@ -817,7 +817,7 @@ async function pgPainel(){
 
   const nivel = av.nivel;
   const dicas = montarDicas(av);
-  const ritmo = cardRitmo(lanc.filter(l => l.data >= mI && l.data <= mF), metasDe(id), perfil);
+  const ritmo = cardComissao(lanc.filter(l => l.data >= mI && l.data <= mF), perfil) + cardRitmo(lanc.filter(l => l.data >= mI && l.data <= mF), metasDe(id), perfil);
 
   const tabela = media ? `<section class="card"><h2>Você x equipe</h2><span class="sm muted">Média de ${media.n} barbeiro${media.n > 1 ? "s" : ""} com lançamentos no período. A marca na barra de cada indicador mostra onde está a média.</span>
     <div class="tbl-wrap"><table><thead><tr><th>Indicador</th><th>${S.me.papel === "admin" ? esc(primeiroNome(perfil.nome)) : "Você"}</th><th>Média</th><th>Meta</th></tr></thead><tbody>
@@ -836,7 +836,7 @@ async function pgPainel(){
       <div class="hero-dica ${nivel || ""}">${esc(frasePrincipal(av, S.me.papel === "admin" ? "" : nm))}</div>
       <div class="cmp">${media && media.nota != null && av.nota != null ? pill(av.nota >= media.nota ? "good" : "bad", `${av.nota >= media.nota ? "Acima" : "Abaixo"} da média da equipe (${dec1(media.nota)})`) : ""}
         ${av.t.dias ? pill("n", `Atualizado até ${dataBR(doPer.map(l => l.data).sort().at(-1))}`) : pill("bad", "Nenhum lançamento no período")}
-        ${pill("n", `Ganho estimado ${money0(ganho)}`)}</div>
+        ${pill("n", `${av.t.comissao_rs ? `Comissão ${money0(av.t.comissao_rs)}` : `Comissão estimada ${money0(ganho)}`}`)}</div>
     </div></div></section>
   ${ritmo}
   ${S.me.papel === "admin" ? cardEditarMeta(perfil) : ""}
@@ -855,6 +855,15 @@ async function pgPainel(){
   ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
 }
 
+// meta de comissão do mês: comissão lançada pelo admin (ou a estimada pela %, enquanto não houver)
+function cardComissao(lancMes, perfil){
+  const meta = +perfil.ganho_desejado || 0; if (!meta) return "";
+  const h = today(), mI = mesIni(h), mF = mesFim(h), t = totais(lancMes), temHoje = lancMes.some(l => l.data === h);
+  const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1));
+  const real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, perfil), proj = feitos ? com / feitos * (feitos + restantes) : 0;
+  return cardLinha(`Meta de comissão de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}`, `${money0(meta)} · ${real ? "pela comissão lançada até hoje" : "estimada pela % de comissão"}`,
+    com, meta, feitos ? feitos / ((feitos + restantes) || 1) : 0, restantes, proj, real ? "de comissão" : "de comissão estimada");
+}
 function cardRitmo(lancMes, metasB, perfil){
   const h = today(), mI = mesIni(h), mF = mesFim(h);
   const m = metasB.find(x => String(x.mes).slice(0,10) === mI);
@@ -1064,7 +1073,7 @@ async function pgMetas(){
     const f = (k, rot, modo) => `<label class="f">${rot}<input inputmode="${modo || "decimal"}" data-k="${k}" value="${modo ? (x[k] || "") : numIn(x[k])}" placeholder="0"></label>`;
     return `<div class="mrow" data-b="${b.id}"><div><b>${esc(b.nome)}</b> <span class="xs muted">comissão ${numIn(b.comissao_servicos) || 0}% serviços · ${numIn(b.comissao_produtos) || 0}% produtos</span></div>
       <div class="mgrid">${f("faturamento", "Meta de faturamento R$")}
-        <label class="f">Quanto deseja ganhar R$<input inputmode="decimal" data-g="1" value="${numIn(+b.ganho_desejado || 0)}" placeholder="0"><span class="xs muted" style="font-weight:500">vale para todos os meses</span></label></div></div>`; };
+        <label class="f">Meta de comissão R$<input inputmode="decimal" data-g="1" value="${numIn(+b.ganho_desejado || 0)}" placeholder="0"><span class="xs muted" style="font-weight:500">vale para todos os meses</span></label></div></div>`; };
   const u = uteisNoMes(m);
   return `<div class="pnav"><button class="icon-btn" data-act="metaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="metaMes" data-v="1" aria-label="Próximo mês">›</button></div>
   <section class="card"><div class="row"><h2>Metas de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}</h2><span class="sm muted">${u} dias de trabalho no mês</span></div>
@@ -1086,11 +1095,11 @@ function cardEditarMeta(b){
   if (S.editMeta !== b.id) {
     const it = (r, v) => `<div><span class="lbl">${r}</span><div class="num" style="font-size:18px">${v}</div></div>`;
     return `<section class="card"><div class="card-head"><h2>${tit}</h2><button class="btn sec sm" data-act="editarMeta" data-v="${b.id}">Editar meta</button></div>
-      <div class="calc-out" style="margin-top:10px">${it("Meta de faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Quer ganhar", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}</div></section>`;
+      <div class="calc-out" style="margin-top:10px">${it("Meta de faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Meta de comissão", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}</div></section>`;
   }
   const f = (k, r, v, modo) => `<label class="f">${r}<input data-em="${k}" inputmode="${modo || "decimal"}" value="${modo ? (v || "") : numIn(v)}" placeholder="0"></label>`;
   return `<section class="card" style="border-color:var(--accent)"><h2>${tit} · ${esc(primeiroNome(b.nome))}</h2><span class="sm muted">Ao salvar, a nota, o ponteiro e os números deste painel já recalculam.</span>
-    <div class="fgrid" style="margin-top:12px">${f("faturamento", "Meta de faturamento R$", x.faturamento)}${f("ganho", "Quanto deseja ganhar R$", b.ganho_desejado)}</div>
+    <div class="fgrid" style="margin-top:12px">${f("faturamento", "Meta de faturamento R$", x.faturamento)}${f("ganho", "Meta de comissão R$", b.ganho_desejado)}</div>
     <div class="actions"><button class="btn" data-act="salvarMetaBarb" data-v="${b.id}">Salvar meta</button><button class="btn ghost" data-act="editarMeta" data-v="">Cancelar</button></div></section>`;
 }
 
@@ -1285,28 +1294,28 @@ async function pgCalc(){
   // comissão real lançada pelo admin; sem ela, vale a estimativa pela %
   const comReal = totais(doMes).comissao_rs, temReal = comReal > 0, ganhoAtual = temReal ? comReal : ganhoMes;
   const metaFat = m ? +m.faturamento || 0 : 0;
-  $("#psub").textContent = "Sua meta de ganho e onde você pode chegar no mês";
+  $("#psub").textContent = "Sua meta de comissão e onde você pode chegar no mês";
   const linha = (rot, fat, sub) => `<div class="li"><span style="flex:1;min-width:0"><b>${rot}</b><br><span class="xs muted">${sub}</span></span><span style="text-align:right;white-space:nowrap"><b class="acc">${money0(fat * taxa)}</b><br><span class="xs muted">faturando ${money0(fat)}</span></span></div>`;
-  return `<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de ganho no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
-    ${ganho ? `${barra(ganhoAtual / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoAtual)} ${temReal ? "de comissão até hoje" : "ganhos até agora (estimado)"} · ${pctTxt(ganhoAtual / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoAtual))}</span></div>` : ""}
+  return `<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de comissão no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
+    ${ganho ? `${barra(ganhoAtual / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoAtual)} ${temReal ? "de comissão até hoje" : "de comissão estimada até agora"} · ${pctTxt(ganhoAtual / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoAtual))}</span></div>` : ""}
     ${temReal ? `<div class="calc-out">
       <div><span class="lbl">Comissão até hoje</span><div class="num acc">${money0(comReal)}</div><span class="xs muted">lançada pelo admin</span></div>
-      <div><span class="lbl">Meta de ganho</span><div class="num">${ganho ? money0(ganho) : "—"}</div>${ganho ? `<span class="xs muted">${comReal >= ganho ? `passou ${money0(comReal - ganho)}` : `falta ${money0(ganho - comReal)}`}</span>` : ""}</div>
+      <div><span class="lbl">Meta de comissão</span><div class="num">${ganho ? money0(ganho) : "—"}</div>${ganho ? `<span class="xs muted">${comReal >= ganho ? `passou ${money0(comReal - ganho)}` : `falta ${money0(ganho - comReal)}`}</span>` : ""}</div>
       <div><span class="lbl">No ritmo atual</span><div class="num ${ganho && feitos && comReal / feitos * u >= ganho ? "good" : ""}">${feitos ? money0(comReal / feitos * u) : "—"}</div><span class="xs muted">de comissão no mês</span></div>
       <div><span class="lbl">Estimada pela %</span><div class="num">${money0(ganhoMes)}</div><span class="xs muted">${Math.abs(comReal - ganhoMes) < 1 ? "igual à real" : `${comReal > ganhoMes ? "real " + money0(comReal - ganhoMes) + " acima" : "real " + money0(ganhoMes - comReal) + " abaixo"}`}</span></div>
     </div>` : ""}
-    <div id="calcOut">${ganho ? calcOut(ganho, taxa, ticket, u, m) : `<p class="empty">O admin ainda não definiu a sua meta de ganho.</p>`}</div>
+    <div id="calcOut">${ganho ? calcOut(ganho, taxa, ticket, u, m) : `<p class="empty">O admin ainda não definiu a sua meta de comissão.</p>`}</div>
   </section>
-  <section class="card"><h2>Onde você pode chegar</h2><span class="sm muted">Quanto você ganha no mês em cada cenário (estimativa pela sua comissão).</span><div class="list" style="margin-top:8px">
+  <section class="card"><h2>Onde você pode chegar</h2><span class="sm muted">Quanto você tira de comissão no mês em cada cenário (estimativa pela sua %).</span><div class="list" style="margin-top:8px">
     ${proj ? linha("No ritmo atual", proj, `projeção com ${feitos} de ${u} dias de trabalho`) : ""}
     ${metaFat ? linha("Batendo a sua meta do mês", metaFat, "meta de faturamento definida pelo admin") : ""}
     ${metaFat ? linha("Passando 20% da meta", metaFat * 1.2, "20% acima da sua meta de faturamento") : ""}
     ${!proj && !metaFat ? `<div class="li"><span class="sm muted">Sem lançamentos ou meta neste mês ainda.</span></div>` : ""}
   </div></section>
-  <section class="card"><h3>Como a conta é feita</h3><p class="sm muted" style="margin:0">Faturamento necessário = meta de ganho ÷ comissão média (${pctTxt(taxa)}, considerando que ${pctTxt(mixProd)} do seu faturamento vem de produtos). Depois dividimos pelos ${u} dias de trabalho do mês e pelo ticket médio${ticket ? ` (${money(ticket)})` : ""} para chegar aos atendimentos por dia.</p></section>`;
+  <section class="card"><h3>Como a conta é feita</h3><p class="sm muted" style="margin:0">Faturamento necessário = meta de comissão ÷ comissão média (${pctTxt(taxa)}, considerando que ${pctTxt(mixProd)} do seu faturamento vem de produtos). Depois dividimos pelos ${u} dias de trabalho do mês e pelo ticket médio${ticket ? ` (${money(ticket)})` : ""} para chegar aos atendimentos por dia.</p></section>`;
 }
 function calcOut(ganho, taxa, ticket, u, m){
-  if (!ganho || !taxa) return `<p class="empty">Preencha quanto quer ganhar para ver o faturamento necessário.</p>`;
+  if (!ganho || !taxa) return `<p class="empty">Defina a meta de comissão para ver o faturamento necessário.</p>`;
   const fat = ganho / taxa, dia = fat / u;
   return `<div class="calc-out">
     <div><span class="lbl">Faturamento no mês</span><div class="num acc">${money0(fat)}</div></div>
@@ -1314,7 +1323,7 @@ function calcOut(ganho, taxa, ticket, u, m){
     <div><span class="lbl">Atendimentos por dia</span><div class="num">${ticket ? dec1(dia / ticket) : "—"}</div><span class="xs muted">${ticket ? "com ticket de " + money(ticket) : "informe o ticket médio"}</span></div>
     <div><span class="lbl">Por semana</span><div class="num">${money0(dia * CFG.dias_trabalho.length)}</div></div>
   </div>
-  ${m && +m.faturamento ? `<div class="hero-dica ${fat > +m.faturamento ? "good" : "warn"}">${fat > +m.faturamento ? `Para esse ganho você precisa passar da meta de faturamento do mês (${money0(m.faturamento)}). Batendo a meta, você bate a meta e vai além.` : `A meta de faturamento do mês para você é ${money0(m.faturamento)}, acima do que precisa para esse ganho. Batendo a meta, você ganha ${money0(+m.faturamento * taxa)}.`}</div>` : ""}`;
+  ${m && +m.faturamento ? `<div class="hero-dica ${fat > +m.faturamento ? "good" : "warn"}">${fat > +m.faturamento ? `Para essa comissão você precisa faturar mais que a sua meta de faturamento do mês (${money0(m.faturamento)}).` : `A sua meta de faturamento do mês (${money0(m.faturamento)}) já passa do que precisa para essa comissão. Batendo a meta, a comissão fica em cerca de ${money0(+m.faturamento * taxa)}.`}</div>` : ""}`;
 }
 
 /* ======================= PÁGINA: HISTÓRICO ======================= */
