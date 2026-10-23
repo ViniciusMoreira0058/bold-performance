@@ -1,0 +1,15 @@
+# Segredos e configurações locais (nunca versionar)
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
+
+# Dependências e builds (se o projeto ganhar build no futuro)
+node_modules/
+dist/
+
+# Sistema
+.DS_Store
+Thumbs.db

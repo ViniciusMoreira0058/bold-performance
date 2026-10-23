@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bold Performance</title>
+<meta name="description" content="Performance dos barbeiros: metas do mês, faturamento, extras, assinaturas e produtos, nota por período e dicas para melhorar.">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bold">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800;1,900&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: menu lateral fixo no computador (≥ 960px), barra inferior no celular */
+:root{
+  --bg:#000000;--surface:#0e0e0e;--surface-2:#171717;--ink:#f5f5f5;--muted:#9a9a9a;--line:#242424;--shadow:none;
+  --accent:#ff751f;--accent-ink:#ff8a3d;--accent-soft:#2a1608;--on-accent:#000000;
+  --good:#4ade80;--good-soft:#10281a;--warn:#fbbf24;--warn-soft:#2e240c;--bad:#f87171;--bad-soft:#331616;
+  --side:#000000;--side-line:#1c1c1c;--side-hover:#141414;
+  --display:"Archivo",system-ui,sans-serif;--body:"Figtree",system-ui,sans-serif;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#f3f2f0;--surface:#ffffff;--surface-2:#f4f3f1;--ink:#0a0a0a;--muted:#666;--line:#e3e1de;--shadow:0 1px 2px rgba(0,0,0,.05);
+  --accent:#ff751f;--accent-ink:#c2510a;--accent-soft:#fff0e6;--on-accent:#000000;
+  --good:#167a45;--good-soft:#e1f2e8;--warn:#9a5a08;--warn-soft:#f8eedd;--bad:#b8332b;--bad-soft:#f9e4e2;
+  --side:#000000;--side-line:#1c1c1c;--side-hover:#141414;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+svg.ic{width:20px;height:20px;flex:0 0 20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+button,input,select,textarea{font:inherit;color:inherit}
+
+/* ---------- estrutura ---------- */
+.app{display:block;padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+.shell{min-width:0}
+.top{position:sticky;top:0;z-index:6;background:var(--bg);padding-top:env(safe-area-inset-top,0px);border-bottom:1px solid transparent}
+.top-in{display:flex;align-items:center;gap:12px;padding:12px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));max-width:1160px;margin:0 auto}
+.top h1{font-family:var(--display);font-style:italic;font-weight:800;font-size:21px;margin:0;line-height:1.15;letter-spacing:-.01em;text-transform:uppercase}
+.top .sub{font-size:13px;color:var(--muted)}
+.tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+main{display:flex;flex-direction:column;gap:16px;padding:6px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));max-width:1160px;margin:0 auto}
+.side{display:flex;flex-direction:column;gap:4px;position:fixed;top:0;bottom:0;left:0;width:min(86vw,290px);z-index:50;background:var(--side);border-right:1px solid var(--side-line);padding:calc(18px + env(safe-area-inset-top,0px)) 14px calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-105%);visibility:hidden;overflow-y:auto;color:#f5f5f5}
+.app.menu-open .side{transform:none;visibility:visible;box-shadow:0 0 40px rgba(0,0,0,.4)}
+.scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:45}
+.app.menu-open .scrim{display:block}
+@media (prefers-reduced-motion:no-preference){.side{transition:transform .25s ease,visibility .25s}.bar>span,.mbar>span{transition:width .5s ease}}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px 16px}
+.brand img{width:150px;height:auto;display:block}
+.brand .fechar{margin-left:auto}
+.side-label{font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:#7a7a7a;padding:12px 10px 4px}
+.nav-i{display:flex;align-items:center;gap:12px;width:100%;border:0;background:none;color:#a3a3a3;font:600 14.5px var(--body);padding:10px 12px;border-radius:8px;cursor:pointer;text-align:left}
+.nav-i:hover{background:var(--side-hover);color:#fff}
+.nav-i[aria-current="page"]{background:var(--accent);color:#000}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--side-line);padding-top:12px}
+.user{display:flex;align-items:center;gap:10px;padding:4px 8px 8px;min-width:0}
+.user b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user span{font-size:12px;color:#8a8a8a}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#000;display:grid;place-items:center;font:800 italic 14px var(--display);flex:0 0 34px}
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#000;border-top:1px solid #1c1c1c;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+.bottom button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:none;color:#8a8a8a;font:600 11px var(--body);padding:6px 2px;border-radius:8px;cursor:pointer;min-width:0}
+.bottom button[aria-current="page"]{color:var(--accent)}
+.mlogo img{height:22px;width:auto;display:block;margin-bottom:2px}
+@media (min-width:960px){
+  .app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh;padding-bottom:0}
+  .side{position:sticky;top:0;height:100vh;width:auto;transform:none;visibility:visible;z-index:1;box-shadow:none!important}
+  .burger,.scrim,.bottom,.mlogo{display:none!important}
+  main{padding:6px 32px 48px}
+  .top-in{padding:24px 32px 12px}
+  .top h1{font-size:26px}
+}
+
+/* ---------- componentes ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);min-width:0}
+.card h2{font:800 italic 17px var(--display);text-transform:uppercase;letter-spacing:.01em;margin:0 0 4px}
+.card h3{font:700 15px var(--display);margin:0 0 6px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,165px),1fr))}
+.sm{font-size:13px}.xs{font-size:12px}.muted{color:var(--muted)}
+.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.acc{color:var(--accent-ink)}
+.num{font:800 italic 24px var(--display);letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.1}
+.lbl{font:700 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;padding:10px 16px;background:var(--accent);color:#000;font:800 italic 14px var(--display);text-transform:uppercase;letter-spacing:.02em;cursor:pointer;min-height:42px}
+.btn:hover{filter:brightness(1.08)}
+.btn.sec{background:var(--surface-2);color:var(--ink);border:1px solid var(--line);font-style:normal;font-weight:700;text-transform:none}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line);font-style:normal;font-weight:600;text-transform:none}
+.btn.danger{background:none;color:var(--bad);border:1px solid var(--line);font-style:normal;font-weight:600;text-transform:none}
+.btn.sm{min-height:34px;padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.icon-btn{width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);border-radius:10px;cursor:pointer;color:var(--ink)}
+.side .icon-btn{background:#0e0e0e;border-color:#262626;color:#f5f5f5}
+.link{border:0;background:none;color:var(--accent-ink);font:600 13px var(--body);cursor:pointer;padding:0}
+label.f{display:flex;flex-direction:column;gap:5px;font:600 13px var(--body);color:var(--muted);min-width:0}
+input,select,textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px;color:var(--ink);min-height:44px}
+textarea{min-height:70px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr))}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.pill{display:inline-flex;align-items:center;gap:6px;font:700 12px var(--body);padding:4px 10px;border-radius:999px;white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.bad{background:var(--bad-soft);color:var(--bad)}.pill.n{background:var(--surface-2);color:var(--muted)}
+.bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;position:relative}
+.bar>span{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.bar>i{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
+.bar.good>span{background:var(--good)}.bar.warn>span{background:var(--warn)}.bar.bad>span{background:var(--bad)}
+.loading{color:var(--muted);text-align:center;padding:40px 16px}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font:600 14px var(--body);z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 24px rgba(0,0,0,.3)}
+@media (min-width:960px){.toast{bottom:24px}}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+.demo-band{background:var(--accent);color:#000;font:700 12.5px var(--body);text-align:center;padding:6px 12px}
+.demo-band button{border:0;background:#000;color:var(--accent);font:700 12px var(--body);border-radius:6px;padding:2px 8px;margin-left:8px;cursor:pointer}
+
+/* período */
+.pbar{display:flex;flex-direction:column;gap:10px}
+.seg{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:1 0 auto;border:0;background:none;color:var(--muted);font:700 13px var(--body);padding:8px 12px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#000}
+.pnav{display:flex;align-items:center;gap:10px}
+.pnav b{flex:1;text-align:center;font:800 italic 15px var(--display);text-transform:uppercase}
+.pnav .icon-btn{font-size:20px;line-height:1}
+.pnav .icon-btn:disabled{opacity:.35;cursor:default}
+
+/* nota */
+.hero{display:grid;gap:18px;grid-template-columns:1fr;align-items:center}
+@media (min-width:720px){.hero{grid-template-columns:260px 1fr}}
+.gauge{position:relative;width:100%;max-width:260px;margin:0 auto}
+.gauge svg{width:100%;height:auto;display:block}
+.gauge .gv{text-align:center;margin-top:-4px}
+.gauge .gv b{display:block;font:900 italic 46px var(--display);line-height:1;letter-spacing:-.02em}
+.gauge .gv span{font:700 11px var(--body);letter-spacing:.14em;text-transform:uppercase}
+.hero-txt h2{font-size:22px}
+.cmp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.cmp .pill{font-size:12.5px}
+
+/* KPIs */
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.kpi .num{font-size:22px;word-break:break-word}
+.kpi .meta{display:flex;justify-content:space-between;gap:4px 8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.kpi .meta>span{white-space:nowrap}
+
+/* dicas */
+.dicas{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.dica{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border-radius:12px;padding:12px 14px}
+.dica i{font-style:normal;flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;font:800 13px var(--display);background:var(--accent);color:#000}
+.dica b{display:block;font-size:14px}
+.dica span{font-size:13.5px;color:var(--muted)}
+.hero-dica{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px}
+.hero-dica.bad{border-color:var(--bad);background:var(--bad-soft)}.hero-dica.warn{border-color:var(--warn);background:var(--warn-soft)}.hero-dica.good{border-color:var(--good);background:var(--good-soft)}
+
+/* tabelas */
+.tbl-wrap{overflow-x:auto;margin:6px -4px 0;padding:0 4px}
+table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+th{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--surface-2)}
+tr.avg td{font-weight:700;color:var(--muted);border-bottom:0}
+td .nb{font:800 italic 16px var(--display)}
+.chart-box{position:relative;height:240px;margin-top:8px}
+.mlist{display:flex;flex-direction:column;margin-top:8px}
+.mrow{padding:14px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.mrow:last-child{border-bottom:0}
+.mgrid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:720px){.mgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.list{display:flex;flex-direction:column}
+.li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.li:last-child{border-bottom:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 12px;font:600 13px var(--body);cursor:pointer;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#000}
+.calc-out{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));margin-top:14px}
+.calc-out>div{background:var(--surface-2);border-radius:12px;padding:12px}
+
+.modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
+.modal>div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:380px;width:100%}
+.modal p{margin:0 0 14px;font-size:15px}
+/* login */
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(120% 70% at 50% 0%,#1d0d03 0%,#000 60%)}
+.auth-box{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px;color:#f5f5f5}
+.auth-box img{width:min(300px,80%);height:auto;margin:0 auto 6px;display:block}
+.auth-box input{background:#111;border-color:#2a2a2a;color:#f5f5f5}
+.auth-box .muted{color:#9a9a9a}
+.auth-box .btn.ghost{color:#f5f5f5;border-color:#2a2a2a}
+.auth-links{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.auth-msg{font-size:13.5px;border-radius:10px;padding:10px 12px;background:#161616}
+</style>
+<script>(function(){try{var m=localStorage.getItem("bp-tema")||"dark";document.documentElement.dataset.theme=m}catch(e){}})()</script>
+</head>
+<body>
+<div id="authRoot"><p class="loading">Carregando…</p></div>
+<div class="app" id="app" hidden>
+  <aside class="side" id="sidebar">
+    <div class="brand"><img src="icons/logo.png" alt="Bold Performance" width="150" height="99"><button class="icon-btn burger fechar" data-act="menu" data-v="0" aria-label="Fechar menu">✕</button></div>
+    <div class="side-label" id="sidelabel">Menu</div>
+    <nav id="sidenav" aria-label="Menu principal"></nav>
+    <div class="side-foot">
+      <div class="user" id="sideuser"></div>
+      <button class="nav-i" data-act="tema"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg>Tema claro / escuro</button>
+      <button class="nav-i" data-act="sair"><svg class="ic" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg>Sair</button>
+    </div>
+  </aside>
+  <div class="shell">
+    <div class="demo-band" id="demoband" hidden></div>
+    <header class="top"><div class="top-in">
+      <button class="icon-btn burger" data-act="menu" data-v="1" aria-label="Abrir menu" aria-controls="sidebar">☰</button>
+      <div style="min-width:0;flex:1"><div class="mlogo"><img src="icons/logo.png" alt="Bold Performance" height="22"></div><h1 id="ptitle"></h1><span class="sub" id="psub"></span></div>
+    </div></header>
+    <main id="main"></main>
+  </div>
+  <div class="scrim" data-act="menu" data-v="0" aria-hidden="true"></div>
+  <nav class="bottom" id="bottomnav" aria-label="Atalhos"></nav>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" hidden><div><p id="modalTxt"></p><div class="row" style="justify-content:flex-end"><button class="btn ghost" id="modalNao">Cancelar</button><button class="btn" id="modalSim">Confirmar</button></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ======================= CONFIGURAÇÃO ======================= */
+// Preencha com os dados do seu projeto no Supabase (Project Settings → API).
+// Enquanto estiverem vazios, o app abre no MODO DEMONSTRAÇÃO, com dados fictícios salvos só neste aparelho.
+const SUPABASE_URL = "";
+const SUPABASE_KEY = ""; // chave pública (publishable/anon): segura no navegador, a RLS protege os dados
+
+const DEMO = !SUPABASE_URL || /[?&]demo=1/.test(location.search);
+const sb = !DEMO && window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+/* ======================= UTILITÁRIOS ======================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pD = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); };
+const today = () => iso(new Date());
+const addD = (s, n) => { const d = pD(s); d.setDate(d.getDate()+n); return iso(d); };
+const addM = (s, n) => { const d = pD(s); return iso(new Date(d.getFullYear(), d.getMonth()+n, 1)); };
+const mesIni = s => s.slice(0,8) + "01";
+const mesFim = s => { const d = pD(s); return iso(new Date(d.getFullYear(), d.getMonth()+1, 0)); };
+const dataBR = s => pD(s).toLocaleDateString("pt-BR", {day:"2-digit", month:"2-digit"});
+const dataLonga = s => pD(s).toLocaleDateString("pt-BR", {weekday:"long", day:"numeric", month:"long"});
+const mesNome = s => pD(s).toLocaleDateString("pt-BR", {month:"long", year:"numeric"});
+const BRL = new Intl.NumberFormat("pt-BR", {style:"currency", currency:"BRL"});
+const BRL0 = new Intl.NumberFormat("pt-BR", {style:"currency", currency:"BRL", maximumFractionDigits:0});
+const money = v => BRL.format(v || 0);
+const money0 = v => BRL0.format(Math.round(v || 0));
+const int = v => Math.round(v || 0).toLocaleString("pt-BR");
+const dec1 = v => (Math.round((v || 0)*10)/10).toLocaleString("pt-BR", {minimumFractionDigits:1, maximumFractionDigits:1});
+const pctTxt = r => r == null ? "—" : Math.round(r*100) + "%";
+const parseNum = v => { let s = String(v ?? "").replace(/[R$\s]/g, ""); if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const n = parseFloat(s); return isFinite(n) && n >= 0 ? n : 0; };
+const numIn = v => v ? String(Math.round(v*100)/100).replace(".", ",") : "";
+const iniciais = n => (n || "?").trim().split(/\s+/).slice(0,2).map(p => p[0]).join("").toUpperCase();
+function toast(t){ const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 3200); }
+// confirmação dentro da página (o confirm() do navegador não funciona em todo lugar)
+function confirmar(msg){ return new Promise(ok => { const m = $("#modal"); $("#modalTxt").textContent = msg; m.hidden = false; $("#modalSim").focus();
+  const fim = v => { m.hidden = true; $("#modalSim").onclick = $("#modalNao").onclick = null; ok(v); }; $("#modalSim").onclick = () => fim(true); $("#modalNao").onclick = () => fim(false); }); }
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
+
+/* ======================= DADOS: SUPABASE ======================= */
+const cloud = {
+  async me(){
+    const { data:{ session } } = await sb.auth.getSession();
+    if (!session) return null;
+    let { data } = await sb.from("equipe").select("*").eq("id", session.user.id).maybeSingle();
+    if (!data) { const r = await sb.rpc("bp_vincular"); if (r.data) ({ data } = await sb.from("equipe").select("*").eq("id", session.user.id).maybeSingle()); }
+    return data ? data : { semPerfil:true, email:session.user.email };
+  },
+  async config(){ const { data } = await sb.from("barbearia_config").select("*").eq("id", 1).maybeSingle(); return data || { nome:"Barbearia", dias_trabalho:[1,2,3,4,5,6] }; },
+  async salvarConfig(c){ const { error } = await sb.from("barbearia_config").update({ nome:c.nome, dias_trabalho:c.dias_trabalho, atualizado_em:new Date().toISOString() }).eq("id", 1); if (error) throw error; },
+  async equipe(){ const { data, error } = await sb.from("equipe").select("*").order("nome"); if (error) throw error; return data; },
+  async salvarPerfil(id, campos){ const { error } = await sb.from("equipe").update(campos).eq("id", id); if (error) throw error; },
+  async convites(){ const { data, error } = await sb.from("convites").select("*").order("criado_em"); if (error) throw error; return data; },
+  async salvarConvite(c){ const { error } = await sb.from("convites").upsert({ ...c, email:c.email.toLowerCase() }); if (error) throw error; },
+  async excluirConvite(email){ const { error } = await sb.from("convites").delete().eq("email", email); if (error) throw error; },
+  async metas(){ const { data, error } = await sb.from("metas").select("*"); if (error) throw error; return data; },
+  async salvarMetas(lista){ const { error } = await sb.from("metas").upsert(lista.map(m => ({ ...m, atualizado_em:new Date().toISOString() }))); if (error) throw error; },
+  async lancamentos(ini, fim, barbeiro){
+    let out = [], from = 0;
+    for (;;) {
+      let q = sb.from("lancamentos").select("*").gte("data", ini).lte("data", fim).order("data").range(from, from + 999);
+      if (barbeiro) q = q.eq("barbeiro_id", barbeiro);
+      const { data, error } = await q; if (error) throw error;
+      out = out.concat(data); if (data.length < 1000) break; from += 1000;
+    }
+    return out;
+  },
+  async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw error; },
+  async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
+  async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
+};
+
+/* ======================= DADOS: DEMONSTRAÇÃO ======================= */
+function gerarDemo(){
+  let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+  const barbs = [
+    { id:"b1", nome:"Lucas Andrade", nivel:1.12, cs:50, cp:10 },
+    { id:"b2", nome:"Rafael Souza",  nivel:.95,  cs:50, cp:10 },
+    { id:"b3", nome:"Diego Lima",    nivel:.66,  cs:45, cp:10 },
+    { id:"b4", nome:"Mateus Rocha",  nivel:.84,  cs:45, cp:10 },
+  ];
+  const equipe = [{ id:"adm", nome:"Vinicius", email:"admin@demo", papel:"admin", ativo:true, comissao_servicos:0, comissao_produtos:0, ganho_desejado:0, ticket_medio:0 }]
+    .concat(barbs.map((b,i) => ({ id:b.id, nome:b.nome, email:`barbeiro${i+1}@demo`, papel:"barbeiro", ativo:true, comissao_servicos:b.cs, comissao_produtos:b.cp, ganho_desejado:[6500,5500,5000,5200][i], ticket_medio:0 })));
+  const metas = [], lanc = [], hoje = today(), ini = addM(mesIni(hoje), -9);
+  for (let m = ini; m <= mesIni(hoje); m = addM(m, 1)) barbs.forEach((b,i) => metas.push({ barbeiro_id:b.id, mes:m, faturamento:[19000,17500,17000,17000][i], extras:[3400,3000,2900,2900][i], assinaturas:[10,9,9,9][i], produtos:[1600,1400,1400,1400][i] }));
+  for (let d = ini; d <= hoje; d = addD(d, 1)) {
+    const dow = pD(d).getDay(); if (dow === 0) continue;
+    if (d === hoje && new Date().getHours() < 20) continue;
+    barbs.forEach(b => {
+      if (rnd() < .05) return;
+      const sab = dow === 6 ? 1.35 : 1, ev = (pD(d).getMonth() % 3 === 1 ? .95 : 1.03) * b.nivel;
+      const at = Math.max(3, Math.round((10 + rnd()*6) * sab * ev));
+      const servicos = Math.round(at * (40 + rnd()*12));
+      const qtd_extras = Math.round(at * (.18 + rnd()*.22) * ev);
+      lanc.push({ barbeiro_id:b.id, data:d, atendimentos:at, servicos, extras:Math.round(qtd_extras*(28+rnd()*14)), qtd_extras,
+        assinaturas: rnd() < .27*ev ? 1 : 0, produtos: rnd() < .55 ? Math.round((25 + rnd()*90) * ev) : 0, obs:"" });
+    });
+  }
+  return { v:1, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc };
+}
+let demoDB = null;
+const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 1) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
+const demoSave = () => lsSet("bp-demo", demoDB);
+const demo = {
+  async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; return demoLoad().equipe.find(e => e.id === id) || null; },
+  async config(){ return { ...demoLoad().config }; },
+  async salvarConfig(c){ demoLoad().config = { nome:c.nome, dias_trabalho:c.dias_trabalho }; demoSave(); },
+  async equipe(){ const me = await demo.me(); const all = demoLoad().equipe; return me.papel === "admin" ? all.map(e => ({...e})) : all.filter(e => e.id === me.id).map(e => ({...e})); },
+  async salvarPerfil(id, campos){ Object.assign(demoLoad().equipe.find(e => e.id === id), campos); demoSave(); },
+  async convites(){ return demoLoad().convites.slice(); },
+  async salvarConvite(c){
+    const db = demoLoad(); c = { ...c, email:c.email.toLowerCase() };
+    db.convites = db.convites.filter(x => x.email !== c.email).concat(c);
+    // na demonstração o barbeiro "cria a conta" na hora
+    if (!db.equipe.some(e => e.email === c.email)) db.equipe.push({ id:"b" + Date.now(), nome:c.nome, email:c.email, papel:c.papel, ativo:true, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos, ganho_desejado:0, ticket_medio:0 });
+    demoSave();
+  },
+  async excluirConvite(email){ const db = demoLoad(); db.convites = db.convites.filter(x => x.email !== email); demoSave(); },
+  async metas(){ const me = await demo.me(); return demoLoad().metas.filter(m => me.papel === "admin" || m.barbeiro_id === me.id).map(m => ({...m})); },
+  async salvarMetas(lista){ const db = demoLoad(); lista.forEach(m => { const i = db.metas.findIndex(x => x.barbeiro_id === m.barbeiro_id && x.mes === m.mes); if (i >= 0) db.metas[i] = {...m}; else db.metas.push({...m}); }); demoSave(); },
+  async lancamentos(ini, fim, barbeiro){ const me = await demo.me(); return demoLoad().lanc.filter(l => l.data >= ini && l.data <= fim && (barbeiro ? l.barbeiro_id === barbeiro : (me.papel === "admin" || l.barbeiro_id === me.id))).map(l => ({...l})).sort((a,b) => a.data < b.data ? -1 : 1); },
+  async salvarLanc(l){ const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
+  async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
+  async resumoEquipe(ini, fim){
+    const me = await demo.me(), db = demoLoad();
+    return db.equipe.filter(e => e.papel === "barbeiro" && e.ativo).map(e => {
+      const t = totais(db.lanc.filter(l => l.barbeiro_id === e.id && l.data >= ini && l.data <= fim));
+      return { eu:e.id === me.id, atendimentos:t.atendimentos, servicos:t.servicos, extras:t.extras, qtd_extras:t.qtd_extras, assinaturas:t.assinaturas, produtos:t.produtos, dias_lancados:t.dias,
+        metas: db.metas.filter(m => m.barbeiro_id === e.id && m.mes >= mesIni(ini) && m.mes <= mesIni(fim)) };
+    });
+  },
+};
+const DB = DEMO ? demo : cloud;
+
+/* ======================= PERÍODOS ======================= */
+const TIPOS = [["dia","Diário"],["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["trimestre","Trimestral"],["semestre","Semestral"],["ano","Anual"]];
+const TIPO_NOME = Object.fromEntries(TIPOS);
+function periodo(tipo, ref){
+  const d = pD(ref), y = d.getFullYear(), m = d.getMonth();
+  let ini, fim, label;
+  if (tipo === "dia") { ini = fim = ref; label = ref === today() ? "Hoje" : ref === addD(today(), -1) ? "Ontem" : pD(ref).toLocaleDateString("pt-BR", {weekday:"short", day:"2-digit", month:"short"}); }
+  else if (tipo === "semana") { const dow = (d.getDay() + 6) % 7; ini = addD(ref, -dow); fim = addD(ini, 6); label = `${dataBR(ini)} a ${dataBR(fim)}`; }
+  else if (tipo === "quinzena") { if (d.getDate() <= 15) { ini = iso(new Date(y, m, 1)); fim = iso(new Date(y, m, 15)); } else { ini = iso(new Date(y, m, 16)); fim = mesFim(ref); } label = `${dataBR(ini)} a ${dataBR(fim)}`; }
+  else if (tipo === "mes") { ini = mesIni(ref); fim = mesFim(ref); label = mesNome(ref); }
+  else if (tipo === "trimestre") { const q = Math.floor(m/3); ini = iso(new Date(y, q*3, 1)); fim = iso(new Date(y, q*3+3, 0)); label = `${q+1}º trimestre ${y}`; }
+  else if (tipo === "semestre") { const s = m < 6 ? 0 : 1; ini = iso(new Date(y, s*6, 1)); fim = iso(new Date(y, s*6+6, 0)); label = `${s+1}º semestre ${y}`; }
+  else { ini = `${y}-01-01`; fim = `${y}-12-31`; label = String(y); }
+  return { tipo, ref, ini, fim, label };
+}
+function moverPeriodo(p, dir){
+  const passo = { dia:[0,1], semana:[0,7], quinzena:null, mes:[1], trimestre:[3], semestre:[6], ano:[12] }[p.tipo];
+  if (p.tipo === "quinzena") return dir > 0 ? addD(p.fim, 1) : addD(p.ini, -1);
+  if (p.tipo === "dia" || p.tipo === "semana") return addD(p.ini, dir * passo[1]);
+  return addM(p.ini, dir * passo[0]);
+}
+
+/* ======================= CÁLCULOS ======================= */
+let CFG = { nome:"Barbearia", dias_trabalho:[1,2,3,4,5,6] };
+const ehDiaUtil = s => CFG.dias_trabalho.includes(pD(s).getDay());
+const _uteisMes = {};
+function uteisNoMes(m){ m = mesIni(m); if (_uteisMes[m + CFG.dias_trabalho]) return _uteisMes[m + CFG.dias_trabalho]; let n = 0; for (let d = m, f = mesFim(m); d <= f; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return _uteisMes[m + CFG.dias_trabalho] = n || 1; }
+function uteisEntre(a, b){ let n = 0; for (let d = a; d <= b; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return n; }
+
+function totais(lista){
+  const t = { atendimentos:0, servicos:0, extras:0, qtd_extras:0, assinaturas:0, produtos:0, dias:0 };
+  for (const l of lista) { t.atendimentos += +l.atendimentos||0; t.servicos += +l.servicos||0; t.extras += +l.extras||0; t.qtd_extras += +l.qtd_extras||0; t.assinaturas += +l.assinaturas||0; t.produtos += +l.produtos||0; t.dias++; }
+  return comDerivados(t);
+}
+function comDerivados(t){
+  t.faturamento = t.servicos + t.extras + t.produtos;
+  t.ticket = t.atendimentos ? t.faturamento / t.atendimentos : 0;
+  t.extraPorAtend = t.atendimentos ? t.qtd_extras / t.atendimentos : 0;
+  t.produtoPorAtend = t.atendimentos ? t.produtos / t.atendimentos : 0;
+  return t;
+}
+const ganhoEstimado = (t, p) => (t.servicos + t.extras) * (+p.comissao_servicos||0) / 100 + t.produtos * (+p.comissao_produtos||0) / 100;
+
+// até onde o período "já aconteceu": se hoje ainda não tem lançamento, conta até ontem
+function corte(p, temHoje){ const h = today(); const lim = temHoje ? h : addD(h, -1); return p.fim < lim ? p.fim : (p.ini > lim ? null : lim); }
+
+// meta proporcional aos dias de trabalho entre ini e fim (cruza meses)
+function metaNoIntervalo(metasDoBarbeiro, ini, fim){
+  const r = { faturamento:0, extras:0, assinaturas:0, produtos:0, dias:0 };
+  if (!ini || !fim || fim < ini) return r;
+  const porMes = {}; (metasDoBarbeiro || []).forEach(m => porMes[String(m.mes).slice(0,10)] = m);
+  for (let d = ini; d <= fim; d = addD(d, 1)) {
+    if (!ehDiaUtil(d)) continue;
+    r.dias++;
+    const m = porMes[mesIni(d)]; if (!m) continue;
+    const u = uteisNoMes(d);
+    r.faturamento += (+m.faturamento||0) / u; r.extras += (+m.extras||0) / u; r.assinaturas += (+m.assinaturas||0) / u; r.produtos += (+m.produtos||0) / u;
+  }
+  return r;
+}
+
+const PESOS = { faturamento:4, extras:2, assinaturas:2, produtos:2 };
+const COMP_NOME = { faturamento:"Faturamento", extras:"Serviços extras", assinaturas:"Assinaturas", produtos:"Produtos" };
+function nivelDe(n){ return n == null ? null : n >= 8 ? "good" : n >= 6 ? "warn" : "bad"; }
+const NIVEL_NOME = { good:"Muito bom", warn:"Médio", bad:"Ruim" };
+// nota de 0 a 10: média ponderada de (real ÷ meta), 100% da meta = 9,0; acima de 111% = 10
+function nota(t, meta){
+  let soma = 0, pesos = 0; const comps = {};
+  for (const k in PESOS) {
+    if (!(meta[k] > 0)) continue;
+    const r = t[k] / meta[k]; comps[k] = { r, real:t[k], meta:meta[k], nota:Math.min(10, r*9) };
+    soma += PESOS[k] * Math.min(r, 1.25); pesos += PESOS[k];
+  }
+  if (!pesos) return { nota:null, comps };
+  return { nota:Math.round(Math.min(10, soma / pesos * 9) * 10) / 10, comps };
+}
+function avaliar(lista, metasB, p){
+  const t = totais(lista);
+  const temHoje = lista.some(l => l.data === today());
+  const c = corte(p, temHoje);
+  const meta = metaNoIntervalo(metasB, p.ini, c);
+  const metaCheia = metaNoIntervalo(metasB, p.ini, p.fim);
+  const n = c ? nota(t, meta) : { nota:null, comps:{} };
+  return { t, meta, metaCheia, corte:c, ...n, nivel:nivelDe(n.nota) };
+}
+function avaliarResumo(row, p){
+  const t = comDerivados({ atendimentos:+row.atendimentos, servicos:+row.servicos, extras:+row.extras, qtd_extras:+row.qtd_extras, assinaturas:+row.assinaturas, produtos:+row.produtos, dias:+row.dias_lancados });
+  const metasB = (typeof row.metas === "string" ? JSON.parse(row.metas) : row.metas) || [];
+  const c = corte(p, true), meta = metaNoIntervalo(metasB, p.ini, c);
+  const n = c ? nota(t, meta) : { nota:null };
+  return { t, nota:n.nota, eu:row.eu };
+}
+function mediaEquipe(avals){
+  const ativos = avals.filter(a => a.t.dias > 0);
+  if (!ativos.length) return null;
+  const m = {}; ["faturamento","servicos","extras","qtd_extras","assinaturas","produtos","atendimentos","dias"].forEach(k => m[k] = ativos.reduce((s,a) => s + a.t[k], 0) / ativos.length);
+  comDerivados(m);
+  const ns = ativos.filter(a => a.nota != null);
+  m.nota = ns.length ? Math.round(ns.reduce((s,a) => s + a.nota, 0) / ns.length * 10) / 10 : null;
+  m.n = ativos.length;
+  return m;
+}
+
+/* ======================= DICAS ======================= */
+const DICAS = {
+  geral: {
+    bad: [
+      ["Volte para o básico hoje", "Confira a agenda da manhã e preencha os horários vagos: chame no WhatsApp quem cortou há mais de 20 dias."],
+      ["Uma meta por atendimento", "Em cada cliente, ofereça pelo menos uma coisa além do corte (barba, sobrancelha, produto ou assinatura). Sem oferta não tem venda."],
+      ["Lance todos os dias", "Registre o resultado no fim de cada dia. O que não é medido não melhora, e a nota fica injusta com você."],
+    ],
+    warn: [
+      ["Você está perto, falta consistência", "Escolha o ponto mais fraco (veja abaixo) e foque só nele até o fim da semana."],
+      ["Aumente o ticket, não só o volume", "Apresente um combo (corte + barba + acabamento) antes de começar o serviço; é mais fácil vender no início do que no fim."],
+      ["Use os horários mortos", "Nos horários vazios, poste o trabalho do dia nos stories e mande mensagem para clientes sumidos."],
+    ],
+    good: [
+      ["Mantenha o ritmo", "Repita a rotina que está funcionando: o mesmo roteiro de oferta e o mesmo cuidado com o pós-atendimento."],
+      ["Fidelize quem já é seu", "Agende o próximo horário antes do cliente sair e ofereça a assinatura para quem vem a cada 15 dias."],
+      ["Suba a régua", "Com a meta batida, mire 10% acima no próximo período e ensine o que está dando certo para a equipe."],
+    ],
+  },
+  faturamento: {
+    bad: "Faturamento abaixo do ritmo: o problema costuma ser agenda vazia. Faça uma lista de 10 clientes que não voltam há 30 dias e chame hoje.",
+    warn: "Faturamento quase no ritmo: preencher 1 ou 2 horários a mais por dia já fecha a diferença.",
+    good: "Faturamento no ritmo ou acima: proteja a agenda (confirmação na véspera evita faltas) e mantenha a pontualidade.",
+  },
+  extras: {
+    bad: "Poucos serviços extras: ofereça sempre que perceber a necessidade (barba, sobrancelha, pigmentação, hidratação). Mostre no espelho o antes e depois.",
+    warn: "Extras na média: crie o hábito de oferecer um extra em todo corte e combine um preço de combo com o admin.",
+    good: "Extras acima da meta: continue apresentando o combo logo no início do atendimento.",
+  },
+  assinaturas: {
+    bad: "Assinaturas abaixo da meta: quem vem a cada 15 a 20 dias é o cliente ideal. Faça a conta para ele: quanto paga no avulso e quanto pagaria no plano.",
+    warn: "Assinaturas perto da meta: ofereça o plano no fechamento de todo cliente que já veio 2 vezes no mês.",
+    good: "Assinaturas acima da meta: cuide da agenda dos assinantes para eles não cancelarem e peça indicações.",
+  },
+  produtos: {
+    bad: "Pouca venda de produtos: use o produto no cliente e explique como aplicar em casa. Deixe o produto na mão dele, não na prateleira.",
+    warn: "Produtos na média: recomende um produto específico para o tipo de cabelo ou barba de cada cliente.",
+    good: "Produtos acima da meta: lembre quem comprou de repor depois de 30 dias.",
+  },
+};
+function montarDicas(av){
+  if (av.nivel == null) return [];
+  const g = DICAS.geral[av.nivel].slice(0, 2).map(([b,s]) => ({ t:b, s }));
+  const comps = Object.entries(av.comps).sort((a,b) => a[1].r - b[1].r);
+  const especificas = comps.slice(0, 2).map(([k,c]) => ({ t:`${COMP_NOME[k]}: ${pctTxt(c.r)} da meta`, s:DICAS[k][nivelDe(c.nota)] }));
+  return especificas.concat(g).slice(0, 4);
+}
+function frasePrincipal(av, nome){
+  if (av.nivel == null) return "Ainda não há meta ou dias trabalhados neste período para dar a nota.";
+  const fraco = Object.entries(av.comps).sort((a,b) => a[1].r - b[1].r)[0];
+  const forte = Object.entries(av.comps).sort((a,b) => b[1].r - a[1].r)[0];
+  if (av.nivel === "good") return `${nome ? nome + ", o" : "O"} período está muito bom. Destaque em ${COMP_NOME[forte[0]].toLowerCase()} (${pctTxt(forte[1].r)} da meta). Agora é manter e subir a régua.`;
+  if (av.nivel === "warn") return `Período médio. O que mais puxa a nota para baixo é ${COMP_NOME[fraco[0]].toLowerCase()} (${pctTxt(fraco[1].r)} da meta). Corrigindo isso, a nota sobe.`;
+  return `Período abaixo do esperado. ${COMP_NOME[fraco[0]]} está em ${pctTxt(fraco[1].r)} da meta. Siga as dicas abaixo a partir do próximo atendimento.`;
+}
+
+/* ======================= ESTADO ======================= */
+const S = {
+  me:null, equipe:[], metas:[], convites:[],
+  tab:null, per:{ tipo:"mes", ref:today() }, ver:null,      // ver = barbeiro aberto pelo admin
+  lancData:today(), lancBarb:null, metaMes:mesIni(today()),
+};
+const charts = [];
+const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro");
+const ativos = () => barbeiros().filter(e => e.ativo);
+const metasDe = id => S.metas.filter(m => m.barbeiro_id === id);
+const nomeDe = id => (S.equipe.find(e => e.id === id) || {}).nome || "—";
+const primeiroNome = n => (n || "").split(" ")[0];
+
+/* ======================= NAVEGAÇÃO ======================= */
+const ABAS_ADMIN = [
+  ["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["metas","Metas do mês","◎"],["lancar","Lançar dia","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
+];
+const ABAS_BARB = [
+  ["painel","Meu painel","◔"],["lancar","Lançar dia","＋"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
+];
+const ICONE = {
+  equipe:'<svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.6 0 4.4 1.6 5 4.5"/></svg>',
+  painel:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4.5-5"/><circle cx="12" cy="16" r="1.6"/></svg>',
+  metas:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/></svg>',
+  lancar:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+  barbeiros:'<svg class="ic" viewBox="0 0 24 24"><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path d="M8.5 16 18 4M15.5 16 6 4"/></svg>',
+  ajustes:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>',
+  calc:'<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8.5 7.5h7M8.5 12h1M12 12h1M15 12h.5M8.5 16h1M12 16h1M15 16h.5"/></svg>',
+  historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
+};
+const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : ABAS_BARB;
+function renderNav(){
+  const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
+  $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
+  const curtos = S.me.papel === "admin" ? ["equipe","metas","lancar","barbeiros"] : ["painel","lancar","calc","historico"];
+  const nomesCurtos = { equipe:"Equipe", metas:"Metas", lancar:"Lançar", barbeiros:"Barbeiros", painel:"Painel", calc:"Meta", historico:"Histórico" };
+  $("#bottomnav").innerHTML = curtos.map(k => `<button data-tab="${k}" ${S.tab === k || (k === "equipe" && S.tab === "painel" && S.me.papel === "admin") ? 'aria-current="page"' : ""}>${ICONE[k]}${nomesCurtos[k]}</button>`).join("") + `<button data-act="menu" data-v="1">${'<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'}Mais</button>`;
+  $("#sideuser").innerHTML = `<div class="avatar">${esc(iniciais(S.me.nome))}</div><div style="min-width:0"><b>${esc(S.me.nome)}</b><span>${S.me.papel === "admin" ? "Administrador" : "Barbeiro"} · ${esc(CFG.nome)}</span></div>`;
+}
+function menu(on){ $("#app").classList.toggle("menu-open", on); document.body.style.overflow = on ? "hidden" : ""; }
+function ir(tab){ S.tab = tab; menu(false); render(); window.scrollTo(0, 0); }
+
+/* ======================= COMPONENTES ======================= */
+function gaugeSVG(n){
+  const v = n == null ? 0 : Math.max(0, Math.min(10, n)), ang = Math.PI * (1 - v/10);
+  const cx = 130, cy = 130, r = 104;
+  const pt = (a, rr) => [cx + rr*Math.cos(a), cy - rr*Math.sin(a)];
+  const arco = (a0, a1, rr) => { const [x0,y0] = pt(a0, rr), [x1,y1] = pt(a1, rr); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${rr} ${rr} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+  const cor = n == null ? "var(--line)" : `var(--${nivelDe(n)})`;
+  const [nx, ny] = pt(ang, r - 22);
+  const ticks = [0, .25, .5, .75, 1].map(f => { const a = Math.PI*(1-f), [x0,y0] = pt(a, r - 20), [x1,y1] = pt(a, r + 12); return `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="var(--bg)" stroke-width="4"/>`; }).join("");
+  return `<svg viewBox="0 0 260 150" aria-hidden="true">
+    <path d="${arco(Math.PI, 0, r)}" fill="none" stroke="var(--surface-2)" stroke-width="22"/>
+    ${n != null && v > 0 ? `<path d="${arco(Math.PI, Math.max(ang, 0.001), r)}" fill="none" stroke="${cor}" stroke-width="22"/>` : ""}
+    ${ticks}
+    <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity="${n == null ? .3 : 1}"/>
+    <circle cx="${cx}" cy="${cy}" r="11" fill="var(--bg)" stroke="var(--accent)" stroke-width="5"/>
+  </svg>`;
+}
+function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
+function barra(r, marca, ritmo){ const w = Math.max(0, Math.min(100, (r || 0) * 100)); const q = ritmo ? r / ritmo : r; const nv = r == null ? "" : q >= .89 ? "good" : q >= .67 ? "warn" : "bad"; return `<div class="bar ${nv}"><span style="width:${w}%"></span>${marca != null && marca > 0 ? `<i style="left:${Math.min(100, marca*100)}%"></i>` : ""}</div>`; }
+function delta(v, ref, fmt){ if (ref == null || !isFinite(ref) || ref === 0) return ""; const d = v / ref - 1; return `<span class="${d >= 0 ? "good" : "bad"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(d*100))}% vs média</span>`; }
+
+function periodoBar(){
+  const p = periodo(S.per.tipo, S.per.ref), futuro = moverPeriodo(p, 1) > today();
+  return `<div class="pbar">
+    <div class="seg" role="group" aria-label="Período">${TIPOS.map(([k,n]) => `<button data-act="tipo" data-v="${k}" aria-pressed="${S.per.tipo === k}">${n}</button>`).join("")}</div>
+    <div class="pnav"><button class="icon-btn" data-act="per" data-v="-1" aria-label="Período anterior">‹</button><b>${esc(p.label)}</b><button class="icon-btn" data-act="per" data-v="1" aria-label="Próximo período" ${futuro ? "disabled" : ""}>›</button>${p.ini <= today() && p.fim >= today() ? "" : `<button class="btn ghost sm" data-act="perHoje">Atual</button>`}</div>
+  </div>`;
+}
+
+/* ======================= PÁGINA: PAINEL DO BARBEIRO ======================= */
+async function pgPainel(){
+  const id = S.me.papel === "admin" ? S.ver : S.me.id;
+  if (!id) return pgEquipe();
+  const perfil = S.equipe.find(e => e.id === id) || S.me;
+  const p = periodo(S.per.tipo, S.per.ref);
+  const mI = mesIni(today()), mF = mesFim(today());
+  const ini = p.ini < mI ? p.ini : mI, fim = p.fim > mF ? p.fim : mF;
+  const [lanc, resumo] = await Promise.all([
+    DB.lancamentos(ini, fim, id),
+    S.me.papel === "admin" ? null : DB.resumoEquipe(p.ini, p.fim),
+  ]);
+  const doPer = lanc.filter(l => l.data >= p.ini && l.data <= p.fim);
+  const av = avaliar(doPer, metasDe(id), p);
+  // média da equipe
+  let media;
+  if (S.me.papel === "admin") {
+    const todos = await DB.lancamentos(p.ini, p.fim);
+    media = mediaEquipe(ativos().map(b => avaliar(todos.filter(l => l.barbeiro_id === b.id), metasDe(b.id), p)));
+  } else media = mediaEquipe((resumo || []).map(r => avaliarResumo(r, p)));
+  const ganho = ganhoEstimado(av.t, perfil);
+  const nm = S.me.papel === "admin" ? perfil.nome : primeiroNome(perfil.nome);
+  $("#psub").textContent = S.me.papel === "admin" ? `Painel de ${perfil.nome}` : `Olá, ${primeiroNome(perfil.nome)}`;
+
+  const kpi = (rot, val, real, meta, med, fmt, extra) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${val}</span>
+    ${meta > 0 ? barra(real/meta, med != null ? med/meta : null) + `<div class="meta"><span>${pctTxt(real/meta)} da meta</span><span>meta ${fmt(meta)}</span></div>` : `<div class="meta"><span>${extra || "sem meta no período"}</span></div>`}
+    ${med != null ? `<div class="meta">${delta(real, med)}<span>média ${fmt(med)}</span></div>` : ""}</div>`;
+
+  const nivel = av.nivel;
+  const dicas = montarDicas(av);
+  const ritmo = cardRitmo(lanc.filter(l => l.data >= mI && l.data <= mF), metasDe(id), perfil);
+
+  const tabela = media ? `<section class="card"><h2>Você x equipe</h2><span class="sm muted">Média de ${media.n} barbeiro${media.n > 1 ? "s" : ""} com lançamentos no período. A marca na barra de cada indicador mostra onde está a média.</span>
+    <div class="tbl-wrap"><table><thead><tr><th>Indicador</th><th>${S.me.papel === "admin" ? esc(primeiroNome(perfil.nome)) : "Você"}</th><th>Média</th><th>Meta</th></tr></thead><tbody>
+    ${[["Nota", av.nota == null ? "—" : dec1(av.nota), media.nota == null ? "—" : dec1(media.nota), "9,0"],
+       ["Faturamento", money0(av.t.faturamento), money0(media.faturamento), av.meta.faturamento ? money0(av.meta.faturamento) : "—"],
+       ["Serviços extras", money0(av.t.extras), money0(media.extras), av.meta.extras ? money0(av.meta.extras) : "—"],
+       ["Assinaturas", int(av.t.assinaturas), dec1(media.assinaturas), av.meta.assinaturas ? dec1(av.meta.assinaturas) : "—"],
+       ["Produtos", money0(av.t.produtos), money0(media.produtos), av.meta.produtos ? money0(av.meta.produtos) : "—"],
+       ["Atendimentos", int(av.t.atendimentos), int(media.atendimentos), "—"],
+       ["Ticket médio", money(av.t.ticket), money(media.ticket), "—"],
+       ["Extras por atendimento", pctTxt(av.t.extraPorAtend), pctTxt(media.extraPorAtend), "—"]].map(r => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join("")}
+    </tbody></table></div><span class="xs muted">A meta mostrada é proporcional aos dias de trabalho do período${av.corte && av.corte < p.fim ? ` até ${dataBR(av.corte)}` : ""}.</span></section>` : "";
+
+  return `${periodoBar()}
+  <section class="card"><div class="hero">
+    <div class="gauge">${gaugeSVG(av.nota)}<div class="gv"><b class="${nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</b><span class="${nivel || "muted"}">${nivel ? NIVEL_NOME[nivel] : "sem nota"}</span></div></div>
+    <div class="hero-txt"><span class="lbl">Nota de performance · ${TIPO_NOME[p.tipo].toLowerCase()}</span><h2>${esc(p.label)}</h2>
+      <div class="hero-dica ${nivel || ""}">${esc(frasePrincipal(av, S.me.papel === "admin" ? "" : nm))}</div>
+      <div class="cmp">${media && media.nota != null && av.nota != null ? pill(av.nota >= media.nota ? "good" : "bad", `${av.nota >= media.nota ? "Acima" : "Abaixo"} da média da equipe (${dec1(media.nota)})`) : ""}
+        ${av.t.dias ? pill("n", `${av.t.dias} dia${av.t.dias > 1 ? "s" : ""} lançado${av.t.dias > 1 ? "s" : ""}`) : pill("bad", "Nenhum lançamento no período")}
+        ${pill("n", `Ganho estimado ${money0(ganho)}`)}</div>
+    </div></div></section>
+  <div class="kpis">
+    ${kpi("Faturamento", money0(av.t.faturamento), av.t.faturamento, av.meta.faturamento, media && media.faturamento, money0)}
+    ${kpi("Serviços extras", money0(av.t.extras), av.t.extras, av.meta.extras, media && media.extras, money0)}
+    ${kpi("Assinaturas", int(av.t.assinaturas), av.t.assinaturas, av.meta.assinaturas, media && media.assinaturas, dec1)}
+    ${kpi("Produtos", money0(av.t.produtos), av.t.produtos, av.meta.produtos, media && media.produtos, money0)}
+    ${kpi("Atendimentos", int(av.t.atendimentos), av.t.atendimentos, 0, media && media.atendimentos, int, `${av.t.dias ? dec1(av.t.atendimentos / av.t.dias) + " por dia" : "—"}`)}
+    ${kpi("Ticket médio", money(av.t.ticket), av.t.ticket, 0, media && media.ticket, money, `${int(av.t.qtd_extras)} extras vendidos`)}
+  </div>
+  ${dicas.length ? `<section class="card"><h2>Dicas para o período</h2><span class="sm muted">${nivel === "good" ? "Para manter e melhorar" : nivel === "warn" ? "Para sair do médio" : "Para virar o jogo"}</span>
+    <div class="dicas">${dicas.map((d,i) => `<div class="dica"><i>${i+1}</i><div><b>${esc(d.t)}</b><span>${esc(d.s)}</span></div></div>`).join("")}</div></section>` : ""}
+  ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Evolução</h2><span class="xs muted">barras = faturamento · linha = meta</span></div><div class="chart-box"><canvas id="chEvo"></canvas></div></section>` : ""}
+  ${ritmo}
+  ${tabela}
+  ${S.me.papel === "admin" ? `<div class="actions"><button class="btn sec" data-act="lancarPara" data-v="${id}">Lançar dia para ${esc(primeiroNome(perfil.nome))}</button><button class="btn ghost" data-tab="equipe">← Voltar para a equipe</button></div>` : ""}
+  ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
+}
+
+function cardRitmo(lancMes, metasB, perfil){
+  const h = today(), mI = mesIni(h), mF = mesFim(h);
+  const m = metasB.find(x => String(x.mes).slice(0,10) === mI);
+  const t = totais(lancMes), temHoje = lancMes.some(l => l.data === h);
+  const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1));
+  const proj = feitos ? t.faturamento / feitos * (feitos + restantes) : 0;
+  if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Metas do mês." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
+  const falta = k => Math.max(0, (+m[k]||0) - t[k]);
+  const ticket = t.ticket || (+perfil.ticket_medio || 0);
+  const porDia = restantes ? falta("faturamento") / restantes : 0;
+  const esperado = feitos / ((feitos + restantes) || 1);
+  const linha = (rot, real, meta, fmt) => `<div><div class="row sm"><span>${rot}</span><span><b>${fmt(real)}</b> <span class="muted">de ${fmt(meta)}</span></span></div>${barra(meta ? real/meta : 0, esperado, esperado)}</div>`;
+  return `<section class="card"><div class="row"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2>${pill(proj >= +m.faturamento ? "good" : "warn", `Projeção ${money0(proj)}`)}</div>
+    <span class="xs muted">A marca em cada barra mostra onde você deveria estar hoje.</span>
+    <div class="grid" style="margin-top:10px">
+      ${linha("Faturamento", t.faturamento, +m.faturamento, money0)}
+      ${+m.extras ? linha("Serviços extras", t.extras, +m.extras, money0) : ""}
+      ${+m.assinaturas ? linha("Assinaturas", t.assinaturas, +m.assinaturas, int) : ""}
+      ${+m.produtos ? linha("Produtos", t.produtos, +m.produtos, money0) : ""}
+    </div>
+    <div class="calc-out">
+      <div><span class="lbl">Falta faturar</span><div class="num">${money0(falta("faturamento"))}</div></div>
+      <div><span class="lbl">Dias de trabalho</span><div class="num">${restantes}</div><span class="xs muted">restantes no mês</span></div>
+      <div><span class="lbl">Por dia</span><div class="num">${money0(porDia)}</div>${ticket && porDia ? `<span class="xs muted">≈ ${dec1(porDia / ticket)} atendimentos/dia</span>` : ""}</div>
+    </div></section>`;
+}
+
+// executa depois que o HTML entra na página (gráficos)
+const _pos = [];
+function posRender(fn){ _pos.push(fn); return ""; }
+function corVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function graficoEvo(lista, metasB, p){
+  const el = document.getElementById("chEvo"); if (!el || !window.Chart) return;
+  const dias = (pD(p.fim) - pD(p.ini)) / 864e5 + 1;
+  const modo = dias <= 31 ? "dia" : dias <= 186 ? "semana" : "mes";
+  const baldes = [];
+  if (modo === "dia") for (let d = p.ini; d <= p.fim; d = addD(d, 1)) baldes.push({ ini:d, fim:d, rot:dataBR(d) });
+  else if (modo === "semana") { for (let d = p.ini; d <= p.fim; d = addD(d, 7)) { const f = addD(d, 6) > p.fim ? p.fim : addD(d, 6); baldes.push({ ini:d, fim:f, rot:dataBR(d) }); } }
+  else for (let d = p.ini; d <= p.fim; d = addM(d, 1)) baldes.push({ ini:d, fim:mesFim(d), rot:pD(d).toLocaleDateString("pt-BR",{month:"short"}).replace(".","") });
+  const fat = baldes.map(b => totais(lista.filter(l => l.data >= b.ini && l.data <= b.fim)).faturamento);
+  const meta = baldes.map(b => Math.round(metaNoIntervalo(metasB, b.ini, b.fim).faturamento) || null);
+  charts.push(new Chart(el, {
+    data:{ labels:baldes.map(b => b.rot), datasets:[
+      { type:"bar", label:"Faturamento", data:fat, backgroundColor:corVar("--accent"), borderRadius:4, maxBarThickness:28, order:2 },
+      { type:"line", label:"Meta", data:meta, borderColor:corVar("--muted"), borderDash:[5,4], pointRadius:0, borderWidth:2, stepped:modo === "dia" ? false : "middle", spanGaps:true, order:1 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${money0(c.raw)}` } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:corVar("--muted"), maxRotation:0, autoSkip:true, maxTicksLimit:10 } },
+               y:{ beginAtZero:true, grid:{ color:corVar("--line") }, ticks:{ color:corVar("--muted"), callback:v => v >= 1000 ? (v/1000).toLocaleString("pt-BR") + " mil" : v } } } }
+  }));
+}
+
+/* ======================= PÁGINA: EQUIPE (ADMIN) ======================= */
+async function pgEquipe(){
+  const p = periodo(S.per.tipo, S.per.ref);
+  const lanc = await DB.lancamentos(p.ini, p.fim);
+  const linhas = ativos().map(b => ({ b, av:avaliar(lanc.filter(l => l.barbeiro_id === b.id), metasDe(b.id), p) }))
+    .sort((x, y) => (y.av.nota ?? -1) - (x.av.nota ?? -1) || y.av.t.faturamento - x.av.t.faturamento);
+  const media = mediaEquipe(linhas.map(l => ({ t:l.av.t, nota:l.av.nota })));
+  const tot = totais(lanc.filter(l => ativos().some(b => b.id === l.barbeiro_id)));
+  const metaTot = linhas.reduce((s, l) => { for (const k of ["faturamento","extras","assinaturas","produtos"]) s[k] += l.av.meta[k]; return s; }, { faturamento:0, extras:0, assinaturas:0, produtos:0 });
+  const notaEq = nota(tot, metaTot).nota;
+  const cont = { good:0, warn:0, bad:0 }; linhas.forEach(l => l.av.nivel && cont[l.av.nivel]++);
+  $("#psub").textContent = CFG.nome;
+  if (!ativos().length) return `<section class="card"><h2>Comece cadastrando a equipe</h2><p class="sm muted">Vá em Barbeiros, cadastre o nome e o e-mail de cada barbeiro e depois defina as metas do mês.</p><div class="actions"><button class="btn" data-tab="barbeiros">Cadastrar barbeiros</button></div></section>`;
+  const alertas = linhas.filter(l => l.av.nivel === "bad");
+  const k = (rot, real, meta, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${meta > 0 ? barra(real/meta) + `<div class="meta"><span>${pctTxt(real/meta)}</span><span>meta ${fmt(meta)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
+  return `${periodoBar()}
+  <section class="card"><div class="hero">
+    <div class="gauge">${gaugeSVG(notaEq)}<div class="gv"><b class="${nivelDe(notaEq) || "muted"}">${notaEq == null ? "—" : dec1(notaEq)}</b><span class="${nivelDe(notaEq) || "muted"}">${notaEq == null ? "sem nota" : NIVEL_NOME[nivelDe(notaEq)]}</span></div></div>
+    <div class="hero-txt"><span class="lbl">Nota da equipe · ${TIPO_NOME[p.tipo].toLowerCase()}</span><h2>${esc(p.label)}</h2>
+      <div class="cmp">${pill("good", `${cont.good} muito bom`)}${pill("warn", `${cont.warn} médio`)}${pill("bad", `${cont.bad} ruim`)}</div>
+      ${alertas.length ? `<div class="hero-dica bad">Atenção com ${alertas.map(a => esc(primeiroNome(a.b.nome))).join(", ")}: nota abaixo de 6. Abra o painel de cada um para ver o ponto fraco e as dicas, e converse com eles ainda nesta semana.</div>`
+        : notaEq != null ? `<div class="hero-dica ${nivelDe(notaEq)}">${notaEq >= 8 ? "Equipe no ritmo. Reconheça quem puxou o resultado e mantenha as metas visíveis." : "Ninguém no vermelho, mas há espaço para crescer. Veja na tabela quem está abaixo da média e em qual indicador."}</div>` : ""}
+    </div></div></section>
+  <div class="kpis">
+    ${k("Faturamento da equipe", tot.faturamento, metaTot.faturamento, money0)}
+    ${k("Serviços extras", tot.extras, metaTot.extras, money0)}
+    ${k("Assinaturas", tot.assinaturas, metaTot.assinaturas, int)}
+    ${k("Produtos", tot.produtos, metaTot.produtos, money0)}
+    <div class="kpi"><span class="lbl">Atendimentos</span><span class="num">${int(tot.atendimentos)}</span><div class="meta"><span>ticket médio ${money(tot.ticket)}</span></div></div>
+  </div>
+  <section class="card"><div class="row"><h2>Ranking do período</h2><span class="xs muted">Toque em um barbeiro para abrir o painel</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Barbeiro</th><th>Nota</th><th>Faturamento</th><th>% meta</th><th>Extras</th><th>Assin.</th><th>Produtos</th><th>Atend.</th><th>Ticket</th></tr></thead><tbody>
+    ${linhas.map(({ b, av }) => `<tr class="click" data-act="abrir" data-v="${b.id}"><td><b>${esc(b.nome)}</b></td><td><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></td>
+      <td>${money0(av.t.faturamento)}</td><td class="${av.meta.faturamento ? nivelDe(av.t.faturamento/av.meta.faturamento*9) : "muted"}">${av.meta.faturamento ? pctTxt(av.t.faturamento/av.meta.faturamento) : "—"}</td>
+      <td>${money0(av.t.extras)}</td><td>${int(av.t.assinaturas)}</td><td>${money0(av.t.produtos)}</td><td>${int(av.t.atendimentos)}</td><td>${money(av.t.ticket)}</td></tr>`).join("")}
+    ${media ? `<tr class="avg"><td>Média</td><td>${media.nota == null ? "—" : dec1(media.nota)}</td><td>${money0(media.faturamento)}</td><td></td><td>${money0(media.extras)}</td><td>${dec1(media.assinaturas)}</td><td>${money0(media.produtos)}</td><td>${int(media.atendimentos)}</td><td>${money(media.ticket)}</td></tr>` : ""}
+    </tbody></table></div></section>
+  ${p.tipo !== "dia" ? `<section class="card"><div class="row"><h2>Faturamento por barbeiro</h2><span class="xs muted">barra = realizado · traço = meta do período</span></div><div class="chart-box"><canvas id="chEq"></canvas></div></section>` : ""}
+  ${posRender(() => p.tipo !== "dia" && graficoEquipe(linhas))}`;
+}
+function graficoEquipe(linhas){
+  const el = document.getElementById("chEq"); if (!el || !window.Chart) return;
+  charts.push(new Chart(el, {
+    data:{ labels:linhas.map(l => primeiroNome(l.b.nome)), datasets:[
+      { type:"bar", label:"Faturamento", data:linhas.map(l => Math.round(l.av.t.faturamento)), backgroundColor:corVar("--accent"), borderRadius:4, maxBarThickness:46, order:2 },
+      { type:"line", label:"Meta", data:linhas.map(l => Math.round(l.av.meta.faturamento) || null), showLine:false, pointStyle:"line", pointRadius:22, pointBorderWidth:3, borderColor:corVar("--ink"), order:1 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c => `${c.dataset.label}: ${money0(c.raw)}` } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:corVar("--muted") } }, y:{ beginAtZero:true, grid:{ color:corVar("--line") }, ticks:{ color:corVar("--muted"), callback:v => v >= 1000 ? (v/1000).toLocaleString("pt-BR") + " mil" : v } } } }
+  }));
+}
+
+/* ======================= PÁGINA: METAS (ADMIN) ======================= */
+async function pgMetas(){
+  const m = S.metaMes, lista = ativos();
+  $("#psub").textContent = "Defina o que cada barbeiro precisa entregar no mês";
+  const linha = b => { const x = S.metas.find(y => y.barbeiro_id === b.id && String(y.mes).slice(0,10) === m) || {};
+    const f = (k, rot, modo) => `<label class="f">${rot}<input inputmode="${modo || "decimal"}" data-k="${k}" value="${modo ? (x[k] || "") : numIn(x[k])}" placeholder="0"></label>`;
+    return `<div class="mrow" data-b="${b.id}"><div><b>${esc(b.nome)}</b> <span class="xs muted">comissão ${numIn(b.comissao_servicos) || 0}% serviços · ${numIn(b.comissao_produtos) || 0}% produtos</span></div>
+      <div class="mgrid">${f("faturamento", "Faturamento R$")}${f("extras", "Extras R$")}${f("assinaturas", "Assinaturas", "numeric")}${f("produtos", "Produtos R$")}</div></div>`; };
+  const u = uteisNoMes(m);
+  return `<div class="pnav"><button class="icon-btn" data-act="metaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="metaMes" data-v="1" aria-label="Próximo mês">›</button></div>
+  <section class="card"><div class="row"><h2>Metas de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}</h2><span class="sm muted">${u} dias de trabalho no mês</span></div>
+    <span class="sm muted">Faturamento é o total que você almeja de cada um (serviços + extras + produtos). Extras e produtos em R$; assinaturas em quantidade de novas assinaturas vendidas.</span>
+    ${lista.length ? `<div class="mlist">${lista.map(linha).join("")}</div>
+    <div class="actions"><button class="btn" data-act="salvarMetas">Salvar metas</button><button class="btn sec" data-act="copiarMetas">Copiar do mês anterior</button><button class="btn ghost" data-act="igualarMetas">Usar a 1ª linha para todos</button></div>`
+    : `<p class="empty">Nenhum barbeiro ativo. Cadastre em Barbeiros.</p>`}
+  </section>
+  <section class="card"><h2>Como a nota é calculada</h2>
+    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. Cada indicador vale (realizado ÷ meta): faturamento pesa 40% e extras, assinaturas e produtos 20% cada. Bater 100% de tudo dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Indicador sem meta não entra na conta.</p></section>`;
+}
+function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")) }; }); }
+
+/* ======================= PÁGINA: LANÇAR DIA ======================= */
+async function pgLancar(){
+  const admin = S.me.papel === "admin";
+  if (admin && !S.lancBarb) S.lancBarb = (ativos()[0] || {}).id;
+  const bid = admin ? S.lancBarb : S.me.id;
+  if (!bid) return `<section class="card"><p class="empty">Cadastre um barbeiro primeiro.</p></section>`;
+  const d = S.lancData;
+  const [l] = await DB.lancamentos(d, d, bid);
+  const x = l || {};
+  $("#psub").textContent = admin ? "Registre o resultado do dia de um barbeiro" : "Registre o seu resultado no fim do dia";
+  const semana = await DB.lancamentos(addD(d, -6), d, bid);
+  const f = (k, rot, dica, modo) => `<label class="f">${rot}<input id="l-${k}" inputmode="${modo || "decimal"}" value="${modo === "numeric" ? (x[k] || "") : numIn(x[k])}" placeholder="0">${dica ? `<span class="xs muted" style="font-weight:500">${dica}</span>` : ""}</label>`;
+  return `<section class="card">
+    <div class="fgrid">
+      ${admin ? `<label class="f">Barbeiro<select id="l-barb" data-ch="lancBarb">${ativos().map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>` : ""}
+      <label class="f">Data<input type="date" id="l-data" data-ch="lancData" value="${d}" max="${today()}"></label>
+    </div>
+    <div class="row" style="margin:12px 0 4px"><h2 style="margin:0">${esc(dataLonga(d))}</h2>${l ? pill("good", "já lançado · editando") : pill("n", "novo lançamento")}</div>
+    <div class="fgrid" style="margin-top:8px">
+      ${f("atendimentos", "Atendimentos", "clientes atendidos no dia", "numeric")}
+      ${f("servicos", "Serviços R$", "cortes e barbas (sem os extras)")}
+      ${f("extras", "Serviços extras R$", "sobrancelha, pigmentação, hidratação…")}
+      ${f("qtd_extras", "Qtd. de extras", "quantos extras vendeu", "numeric")}
+      ${f("assinaturas", "Assinaturas novas", "planos vendidos no dia", "numeric")}
+      ${f("produtos", "Produtos R$", "pomadas, óleos, shampoos…")}
+    </div>
+    <label class="f" style="margin-top:12px">Observação<textarea id="l-obs" placeholder="Opcional: chuva, falta de cliente, evento…">${esc(x.obs)}</textarea></label>
+    <div class="actions"><button class="btn" data-act="salvarLanc">Salvar dia</button>${l ? `<button class="btn danger" data-act="excluirLanc">Excluir lançamento</button>` : ""}</div>
+  </section>
+  <section class="card"><h2>Últimos 7 dias</h2><div class="list">
+    ${Array.from({ length:7 }, (_, i) => addD(d, -i)).map(dd => { const y = semana.find(s => s.data === dd); const t = y ? totais([y]) : null;
+      return `<div class="li"><button class="link" data-act="irData" data-v="${dd}">${esc(pD(dd).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button>${t ? `<span class="sm"><b>${money0(t.faturamento)}</b> <span class="muted">· ${t.atendimentos} atend. · ${money0(t.extras)} extras · ${t.assinaturas} assin. · ${money0(t.produtos)} prod.</span></span>` : `<span class="sm ${ehDiaUtil(dd) ? "warn" : "muted"}">${ehDiaUtil(dd) ? "sem lançamento" : "folga"}</span>`}</div>`; }).join("")}
+  </div></section>`;
+}
+
+/* ======================= PÁGINA: MINHA META (CALCULADORA) ======================= */
+async function pgCalc(){
+  const me = S.equipe.find(e => e.id === S.me.id) || S.me;
+  const h = today(), hist = await DB.lancamentos(addD(h, -90), h, me.id), t = totais(hist);
+  const mixProd = t.faturamento ? t.produtos / t.faturamento : .08;
+  const cs = (+me.comissao_servicos||0) / 100, cp = (+me.comissao_produtos||0) / 100;
+  const taxa = (1 - mixProd) * cs + mixProd * cp;
+  const ticket = +me.ticket_medio || t.ticket || 0;
+  const ganho = +me.ganho_desejado || 0;
+  const u = uteisNoMes(h);
+  const fatNec = taxa ? ganho / taxa : 0;
+  const m = metasDe(me.id).find(x => String(x.mes).slice(0,10) === mesIni(h));
+  $("#psub").textContent = "Quanto você quer ganhar e o que precisa fazer para chegar lá";
+  return `<section class="card"><h2>Quanto você quer ganhar no mês?</h2>
+    <span class="sm muted">Sua comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos (definida pelo admin).</span>
+    <div class="fgrid" style="margin-top:12px">
+      <label class="f">Ganho desejado no mês (R$)<input id="c-ganho" inputmode="decimal" value="${numIn(ganho)}" placeholder="ex.: 6000" data-in="calc"></label>
+      <label class="f">Ticket médio (R$)<input id="c-ticket" inputmode="decimal" value="${numIn(+me.ticket_medio)}" placeholder="${t.ticket ? numIn(Math.round(t.ticket*100)/100) + " (seus últimos 90 dias)" : "ex.: 55"}" data-in="calc"></label>
+    </div>
+    <div id="calcOut">${calcOut(ganho, taxa, ticket, u, m)}</div>
+    <div class="actions"><button class="btn" data-act="salvarCalc">Salvar minha meta</button></div>
+  </section>
+  <section class="card"><h3>Como a conta é feita</h3><p class="sm muted" style="margin:0">Faturamento necessário = ganho desejado ÷ comissão média (${pctTxt(taxa)}, considerando que ${pctTxt(mixProd)} do seu faturamento vem de produtos). Depois dividimos pelos ${u} dias de trabalho do mês e pelo ticket médio para chegar aos atendimentos por dia.</p></section>`;
+}
+function calcOut(ganho, taxa, ticket, u, m){
+  if (!ganho || !taxa) return `<p class="empty">Preencha quanto quer ganhar para ver o faturamento necessário.</p>`;
+  const fat = ganho / taxa, dia = fat / u;
+  return `<div class="calc-out">
+    <div><span class="lbl">Faturamento no mês</span><div class="num acc">${money0(fat)}</div></div>
+    <div><span class="lbl">Por dia de trabalho</span><div class="num">${money0(dia)}</div><span class="xs muted">${u} dias no mês</span></div>
+    <div><span class="lbl">Atendimentos por dia</span><div class="num">${ticket ? dec1(dia / ticket) : "—"}</div><span class="xs muted">${ticket ? "com ticket de " + money(ticket) : "informe o ticket médio"}</span></div>
+    <div><span class="lbl">Por semana</span><div class="num">${money0(dia * CFG.dias_trabalho.length)}</div></div>
+  </div>
+  ${m && +m.faturamento ? `<div class="hero-dica ${fat > +m.faturamento ? "good" : "warn"}">${fat > +m.faturamento ? `Seu objetivo está acima da meta da barbearia (${money0(m.faturamento)}). Ótimo: batendo o seu, você bate a meta.` : `A meta da barbearia para você é ${money0(m.faturamento)}, acima do que você precisa para o seu ganho. Mire na meta da barbearia: ela rende ${money0(+m.faturamento * taxa)} para você.`}</div>` : ""}`;
+}
+
+/* ======================= PÁGINA: HISTÓRICO ======================= */
+async function pgHistorico(){
+  const h = today(), lista = (await DB.lancamentos(addD(h, -60), h, S.me.id)).reverse();
+  $("#psub").textContent = "Seus lançamentos dos últimos 60 dias";
+  return `<section class="card"><div class="tbl-wrap"><table><thead><tr><th>Dia</th><th>Atend.</th><th>Serviços</th><th>Extras</th><th>Assin.</th><th>Produtos</th><th>Total</th></tr></thead><tbody>
+    ${lista.map(l => { const t = totais([l]); return `<tr class="click" data-act="irData" data-v="${l.data}"><td>${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</td><td>${t.atendimentos}</td><td>${money0(t.servicos)}</td><td>${money0(t.extras)}</td><td>${t.assinaturas}</td><td>${money0(t.produtos)}</td><td><b>${money0(t.faturamento)}</b></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">Nenhum lançamento ainda.</td></tr>`}
+  </tbody></table></div></section>`;
+}
+
+/* ======================= PÁGINA: BARBEIROS (ADMIN) ======================= */
+async function pgBarbeiros(){
+  S.convites = await DB.convites();
+  const pend = S.convites.filter(c => !S.equipe.some(e => (e.email || "").toLowerCase() === c.email.toLowerCase()));
+  $("#psub").textContent = "Contas da equipe, comissões e convites";
+  const card = b => `<div class="li"><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")}<div class="xs muted">${esc(b.email || "")}</div></div>
+    <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
+    <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
+    <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
+    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button></div></div>`;
+  return `<section class="card"><h2>Novo barbeiro</h2><span class="sm muted">Cadastre o e-mail e mande o link do app para ele. Ele toca em <b>Criar conta</b> com esse mesmo e-mail e já entra no painel dele.</span>
+    <div class="fgrid" style="margin-top:12px">
+      <label class="f">Nome<input id="n-nome" placeholder="Nome do barbeiro"></label>
+      <label class="f">E-mail<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
+      <label class="f">Comissão serviços %<input id="n-cs" inputmode="decimal" value="50"></label>
+      <label class="f">Comissão produtos %<input id="n-cp" inputmode="decimal" value="10"></label>
+    </div><div class="actions"><button class="btn" data-act="convidar">Cadastrar</button></div></section>
+  ${pend.length ? `<section class="card"><h2>Aguardando criar a conta</h2><div class="list">${pend.map(c => `<div class="li"><div><b>${esc(c.nome)}</b><div class="xs muted">${esc(c.email)} · ${c.papel === "admin" ? "admin" : "barbeiro"}</div></div><div class="row" style="gap:8px"><button class="btn ghost sm" data-act="copiarLink">Copiar link do app</button><button class="btn danger sm" data-act="excluirConvite" data-v="${esc(c.email)}">Cancelar</button></div></div>`).join("")}</div></section>` : ""}
+  <section class="card"><h2>Equipe</h2><div class="list">${barbeiros().map(card).join("") || `<p class="empty">Nenhum barbeiro ainda.</p>`}</div></section>`;
+}
+
+/* ======================= PÁGINA: AJUSTES ======================= */
+async function pgAjustes(){
+  const admin = S.me.papel === "admin", D = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  $("#psub").textContent = admin ? "Barbearia, aparência e conta" : "Aparência e conta";
+  return `${admin ? `<section class="card"><h2>Barbearia</h2>
+    <div class="fgrid" style="margin-top:10px"><label class="f">Nome da barbearia<input id="a-nome" value="${esc(CFG.nome)}"></label></div>
+    <div style="margin-top:12px"><span class="lbl">Dias de trabalho</span><div class="chips" style="margin-top:6px">${D.map((n,i) => `<button class="chip" data-act="dia" data-v="${i}" aria-pressed="${CFG.dias_trabalho.includes(i)}">${n}</button>`).join("")}</div>
+    <span class="xs muted">As metas são divididas por esses dias. Ex.: segunda a sábado = cerca de 26 dias no mês.</span></div>
+    <div class="actions"><button class="btn" data-act="salvarCfg">Salvar</button></div></section>` : ""}
+  <section class="card"><h2>Aparência</h2><div class="chips" style="margin-top:8px">${[["dark","Escuro"],["light","Claro"]].map(([k,n]) => `<button class="chip" data-act="temaSet" data-v="${k}" aria-pressed="${(document.documentElement.dataset.theme || "dark") === k}">${n}</button>`).join("")}</div></section>
+  <section class="card"><h2>Conta</h2><p class="sm muted" style="margin:4px 0 0">${esc(S.me.nome)} · ${esc(S.me.email || "")} · ${admin ? "Administrador" : "Barbeiro"}</p>
+    <div class="actions">${DEMO ? "" : `<button class="btn sec" data-act="novaSenha">Trocar senha</button>`}<button class="btn ghost" data-act="sair">Sair</button></div></section>
+  ${DEMO ? `<section class="card"><h2>Demonstração</h2><p class="sm muted" style="margin:4px 0 0">Os dados desta demonstração são fictícios e ficam só neste aparelho.</p><div class="actions"><button class="btn danger" data-act="resetDemo">Recomeçar com dados novos</button></div></section>` : ""}`;
+}
+
+/* ======================= RENDER ======================= */
+const PAGINAS = { equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+let renderSeq = 0;
+async function render(){
+  const seq = ++renderSeq;
+  renderNav();
+  const a = abas().find(x => x[0] === S.tab) || abas()[0];
+  $("#ptitle").textContent = S.tab === "painel" && S.me.papel === "admin" ? nomeDe(S.ver) : a[1];
+  $("#psub").textContent = "";
+  const main = $("#main");
+  if (!main.innerHTML.trim()) main.innerHTML = `<p class="loading">Carregando…</p>`;
+  _pos.length = 0;
+  let html;
+  try { html = await PAGINAS[S.tab](); }
+  catch (e) { console.error(e); html = `<section class="card"><h2>Não foi possível carregar</h2><p class="sm muted">${esc(e.message || e)}</p><div class="actions"><button class="btn" data-act="recarregar">Tentar de novo</button></div></section>`; }
+  if (seq !== renderSeq) return;
+  while (charts.length) charts.pop().destroy();
+  main.innerHTML = html;
+  _pos.splice(0).forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+}
+
+async function carregarBase(){
+  const [cfg, eq, mt] = await Promise.all([DB.config(), DB.equipe(), DB.metas()]);
+  CFG = { nome:cfg.nome, dias_trabalho:(cfg.dias_trabalho || [1,2,3,4,5,6]).map(Number) };
+  S.equipe = eq; S.metas = mt;
+  const eu = eq.find(e => e.id === S.me.id); if (eu) S.me = eu;
+}
+
+/* ======================= AÇÕES ======================= */
+const ACOES = {
+  menu: v => menu(v === "1"),
+  tipo: v => { S.per.tipo = v; render(); },
+  per: v => { S.per.ref = moverPeriodo(periodo(S.per.tipo, S.per.ref), +v); if (S.per.ref > today()) S.per.ref = today(); render(); },
+  perHoje: () => { S.per.ref = today(); render(); },
+  abrir: v => { S.ver = v; ir("painel"); },
+  lancarPara: v => { S.lancBarb = v; S.lancData = today(); ir("lancar"); },
+  irData: v => { S.lancData = v; ir("lancar"); },
+  recarregar: () => render(),
+  tema: () => ACOES.temaSet(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
+  temaSet: v => { document.documentElement.dataset.theme = v; try { localStorage.setItem("bp-tema", v); } catch(e) {} render(); },
+  metaMes: v => { S.metaMes = addM(S.metaMes, +v); render(); },
+  async salvarMetas(){ await DB.salvarMetas(lerMetas()); S.metas = await DB.metas(); toast("Metas salvas."); render(); },
+  copiarMetas(){
+    const ant = addM(S.metaMes, -1);
+    let n = 0;
+    document.querySelectorAll(".mrow").forEach(tr => { const x = S.metas.find(y => y.barbeiro_id === tr.dataset.b && String(y.mes).slice(0,10) === ant); if (!x) return; n++;
+      ["faturamento","extras","produtos"].forEach(k => tr.querySelector(`[data-k="${k}"]`).value = numIn(x[k])); tr.querySelector('[data-k="assinaturas"]').value = x.assinaturas || ""; });
+    toast(n ? "Copiado. Confira e toque em Salvar metas." : "O mês anterior não tem metas.");
+  },
+  igualarMetas(){
+    const trs = [...document.querySelectorAll(".mrow")]; if (!trs.length) return;
+    const base = {}; ["faturamento","extras","assinaturas","produtos"].forEach(k => base[k] = trs[0].querySelector(`[data-k="${k}"]`).value);
+    trs.slice(1).forEach(tr => Object.entries(base).forEach(([k,v]) => tr.querySelector(`[data-k="${k}"]`).value = v));
+    toast("Valores copiados. Toque em Salvar metas.");
+  },
+  async salvarLanc(){
+    const g = id => $("#l-" + id).value, bid = S.me.papel === "admin" ? S.lancBarb : S.me.id;
+    if (S.lancData > today()) return toast("Não dá para lançar um dia futuro.");
+    const l = { barbeiro_id:bid, data:S.lancData, atendimentos:Math.round(parseNum(g("atendimentos"))), servicos:parseNum(g("servicos")), extras:parseNum(g("extras")),
+      qtd_extras:Math.round(parseNum(g("qtd_extras"))), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")), obs:g("obs").trim() || null };
+    if (!l.atendimentos && !l.servicos && !l.extras && !l.produtos && !l.assinaturas) return toast("Preencha pelo menos um valor.");
+    await DB.salvarLanc(l); toast(`Dia ${dataBR(S.lancData)} salvo.`); render();
+  },
+  async excluirLanc(){ if (!await confirmar("Excluir o lançamento deste dia?")) return; await DB.excluirLanc(S.me.papel === "admin" ? S.lancBarb : S.me.id, S.lancData); toast("Lançamento excluído."); render(); },
+  async salvarCalc(){
+    const campos = { ganho_desejado:parseNum($("#c-ganho").value), ticket_medio:parseNum($("#c-ticket").value) };
+    await DB.salvarPerfil(S.me.id, campos); Object.assign(S.me, campos); const e = S.equipe.find(x => x.id === S.me.id); if (e) Object.assign(e, campos); toast("Meta pessoal salva.");
+  },
+  async convidar(){
+    const nome = $("#n-nome").value.trim(), email = $("#n-email").value.trim().toLowerCase();
+    if (!nome || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && !(DEMO && /@/.test(email))) return toast("Preencha nome e um e-mail válido.");
+    await DB.salvarConvite({ email, nome, papel:"barbeiro", comissao_servicos:parseNum($("#n-cs").value), comissao_produtos:parseNum($("#n-cp").value) });
+    S.equipe = await DB.equipe();
+    toast(DEMO ? `${nome} cadastrado.` : `${nome} cadastrado. Mande o link do app para ele criar a conta.`); render();
+  },
+  async excluirConvite(v){ if (!await confirmar("Cancelar este convite?")) return; await DB.excluirConvite(v); render(); },
+  copiarLink(){ const url = location.origin + location.pathname; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => toast("Link copiado."), () => toast("Link do app: " + url)); },
+  async salvarPerfil(v){
+    const g = k => document.querySelector(`[data-perfil="${v}"][data-k="${k}"]`).value;
+    await DB.salvarPerfil(v, { comissao_servicos:parseNum(g("comissao_servicos")), comissao_produtos:parseNum(g("comissao_produtos")) });
+    S.equipe = await DB.equipe(); toast("Comissão salva.");
+  },
+  async ativo(v){
+    const b = S.equipe.find(e => e.id === v);
+    if (b.ativo && !await confirmar(`Desativar ${b.nome}? Ele não aparece mais no ranking e não consegue lançar. Os dados ficam guardados.`)) return;
+    await DB.salvarPerfil(v, { ativo:!b.ativo }); S.equipe = await DB.equipe(); render();
+  },
+  dia: v => { v = +v; const s = new Set(CFG.dias_trabalho); s.has(v) ? s.delete(v) : s.add(v); if (!s.size) return; CFG.dias_trabalho = [...s].sort(); render(); },
+  async salvarCfg(){ CFG.nome = $("#a-nome").value.trim() || "Barbearia"; await DB.salvarConfig(CFG); toast("Ajustes salvos."); render(); },
+  async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
+  async sair(){ if (DEMO) lsSet("bp-demo-user", null); else await sb.auth.signOut(); location.reload(); },
+  async resetDemo(){ if (!await confirmar("Apagar os dados da demonstração e gerar novos?")) return; try { localStorage.removeItem("bp-demo"); } catch(e) {} demoDB = null; location.reload(); },
+  async demoEntrar(v){ lsSet("bp-demo-user", v); location.reload(); },
+};
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-tab],[data-act]"); if (!t) return;
+  if (t.dataset.tab) { if (t.dataset.tab === "equipe") S.ver = null; ir(t.dataset.tab); return; }
+  const fn = ACOES[t.dataset.act]; if (!fn) return;
+  if (t.tagName === "BUTTON") t.disabled = true;
+  try { await fn(t.dataset.v); } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
+  finally { if (t.tagName === "BUTTON" && document.contains(t)) t.disabled = false; }
+});
+document.addEventListener("change", e => {
+  const k = e.target.dataset.ch; if (!k) return;
+  if (k === "lancData") { if (!e.target.value) return; S.lancData = e.target.value > today() ? today() : e.target.value; }
+  if (k === "lancBarb") S.lancBarb = e.target.value;
+  render();
+});
+document.addEventListener("input", e => {
+  if (e.target.dataset.in !== "calc") return;
+  const me = S.equipe.find(x => x.id === S.me.id) || S.me;
+  const tk = parseNum($("#c-ticket").value) || parseNum($("#c-ticket").placeholder);
+  pgCalc._t && clearTimeout(pgCalc._t);
+  pgCalc._t = setTimeout(async () => {
+    const h = today(), t = totais(await DB.lancamentos(addD(h, -90), h, me.id)), mix = t.faturamento ? t.produtos / t.faturamento : .08;
+    const taxa = (1 - mix) * (+me.comissao_servicos||0) / 100 + mix * (+me.comissao_produtos||0) / 100;
+    const out = $("#calcOut"); if (out) out.innerHTML = calcOut(parseNum($("#c-ganho").value), taxa, tk || t.ticket, uteisNoMes(h), metasDe(me.id).find(x => String(x.mes).slice(0,10) === mesIni(h)));
+  }, 200);
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") menu(false); });
+
+/* ======================= LOGIN ======================= */
+function telaLogin(modo, msg){
+  const R = $("#authRoot"); R.hidden = false; $("#app").hidden = true;
+  if (DEMO) {
+    const eq = demoLoad().equipe;
+    R.innerHTML = `<div class="auth"><div class="auth-box"><img src="icons/logo.png" alt="Bold Performance" width="300" height="198">
+      <div class="auth-msg"><b>Modo demonstração.</b> Dados fictícios, salvos só neste aparelho. Escolha com qual conta entrar:</div>
+      <button class="btn" data-act="demoEntrar" data-v="adm">Entrar como admin (Vinicius)</button>
+      ${eq.filter(e => e.papel === "barbeiro").map(b => `<button class="btn ghost" data-act="demoEntrar" data-v="${b.id}">Entrar como ${esc(b.nome)}</button>`).join("")}
+    </div></div>`;
+    return;
+  }
+  const titulos = { entrar:"Entrar", criar:"Criar conta", esqueci:"Recuperar senha" };
+  R.innerHTML = `<div class="auth"><form class="auth-box" id="authForm" novalidate><img src="icons/logo.png" alt="Bold Performance" width="300" height="198">
+    ${msg ? `<div class="auth-msg">${msg}</div>` : ""}
+    ${modo === "criar" ? `<p class="sm muted" style="margin:0">Use o e-mail que o admin cadastrou para você.</p>` : ""}
+    <label class="f">E-mail<input type="email" id="au-email" autocomplete="email" required></label>
+    ${modo !== "esqueci" ? `<label class="f">Senha<input type="password" id="au-senha" autocomplete="${modo === "criar" ? "new-password" : "current-password"}" minlength="6" required></label>` : ""}
+    <button class="btn" type="submit">${titulos[modo]}</button>
+    <div class="auth-links">${modo === "entrar" ? `<button type="button" class="link" data-auth="criar">Criar conta</button><button type="button" class="link" data-auth="esqueci">Esqueci a senha</button>` : `<button type="button" class="link" data-auth="entrar">Voltar para entrar</button>`}</div>
+  </form></div>`;
+  R.querySelectorAll("[data-auth]").forEach(b => b.onclick = () => telaLogin(b.dataset.auth));
+  $("#authForm").onsubmit = async ev => {
+    ev.preventDefault();
+    const email = $("#au-email").value.trim(), senha = $("#au-senha") && $("#au-senha").value;
+    const btn = ev.target.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      if (modo === "entrar") { const { error } = await sb.auth.signInWithPassword({ email, password:senha }); if (error) throw error; await iniciar(); }
+      else if (modo === "criar") {
+        if (!senha || senha.length < 6) throw new Error("A senha precisa de pelo menos 6 caracteres.");
+        const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ emailRedirectTo:location.origin + location.pathname } }); if (error) throw error;
+        if (data.session) await iniciar(); else telaLogin("entrar", "Conta criada. Confirme pelo link que enviamos para o seu e-mail e depois entre.");
+      } else { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo:location.origin + location.pathname }); if (error) throw error; telaLogin("entrar", "Enviamos um link para criar uma nova senha."); }
+    } catch (err) {
+      const m = /Invalid login/i.test(err.message) ? "E-mail ou senha incorretos." : /confirm/i.test(err.message) ? "Confirme o seu e-mail pelo link que enviamos antes de entrar." : err.message;
+      telaLogin(modo, esc(m));
+    } finally { btn.disabled = false; }
+  };
+}
+
+async function iniciar(){
+  let me;
+  try { me = await DB.me(); } catch (e) { console.error(e); return telaLogin("entrar", "Não foi possível conectar. Verifique a internet."); }
+  if (!me) return telaLogin("entrar");
+  if (me.semPerfil) { await sb.auth.signOut(); return telaLogin("entrar", `A conta <b>${esc(me.email)}</b> ainda não foi liberada. Peça para o admin cadastrar este e-mail em Barbeiros.`); }
+  if (!me.ativo) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", "Esta conta está desativada. Fale com o admin."); }
+  S.me = me;
+  await carregarBase();
+  S.tab = S.me.papel === "admin" ? "equipe" : "painel";
+  $("#authRoot").hidden = true; $("#app").hidden = false;
+  if (DEMO) { const b = $("#demoband"); b.hidden = false; b.innerHTML = `Modo demonstração · dados fictícios<button data-act="sair">Trocar conta</button>`; }
+  render();
+}
+if (sb) sb.auth.onAuthStateChange(ev => { if (ev === "PASSWORD_RECOVERY") setTimeout(() => ACOES.novaSenha(), 300); });
+iniciar();
+</script>
+</body>
+</html>
