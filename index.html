@@ -12,21 +12,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Bold">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800;1,900&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap">
 <style>
 /* Layout: menu lateral fixo no computador (≥ 960px), barra inferior no celular */
 :root{
-  --bg:#000000;--surface:#0e0e0e;--surface-2:#171717;--ink:#f5f5f5;--muted:#9a9a9a;--line:#242424;--shadow:none;
+  --bg:#070707;--surface:#151515;--surface-2:#1e1e1e;--ink:#f4f4f2;--muted:#8b8b8b;--line:#262626;--shadow:none;--off:#2a2a2a;
   --accent:#ff751f;--accent-ink:#ff8a3d;--accent-soft:#2a1608;--on-accent:#000000;
-  --good:#4ade80;--good-soft:#10281a;--warn:#fbbf24;--warn-soft:#2e240c;--bad:#f87171;--bad-soft:#331616;
-  --side:#000000;--side-line:#1c1c1c;--side-hover:#141414;
-  --display:"Archivo",system-ui,sans-serif;--body:"Figtree",system-ui,sans-serif;
+  --good:#a3e05f;--good-soft:#1a2610;--warn:#f5c03b;--warn-soft:#2b230c;--bad:#f2585b;--bad-soft:#2e1213;
+  --side:#070707;--side-line:#1c1c1c;--side-hover:#151515;
+  --display:"Outfit",system-ui,sans-serif;--body:"Outfit",system-ui,sans-serif;
   color-scheme:dark;
 }
 :root[data-theme="light"]{
-  --bg:#f3f2f0;--surface:#ffffff;--surface-2:#f4f3f1;--ink:#0a0a0a;--muted:#666;--line:#e3e1de;--shadow:0 1px 2px rgba(0,0,0,.05);
+  --bg:#efefed;--surface:#ffffff;--surface-2:#f3f3f1;--ink:#0a0a0a;--muted:#6b6b6b;--line:#e3e3e0;--shadow:0 1px 2px rgba(0,0,0,.05);--off:#e2e2df;
   --accent:#ff751f;--accent-ink:#c2510a;--accent-soft:#fff0e6;--on-accent:#000000;
-  --good:#167a45;--good-soft:#e1f2e8;--warn:#9a5a08;--warn-soft:#f8eedd;--bad:#b8332b;--bad-soft:#f9e4e2;
+  --good:#4c9a1c;--good-soft:#e8f4dc;--warn:#b07d06;--warn-soft:#f8eedd;--bad:#d1343a;--bad-soft:#f9e4e2;
   --side:#000000;--side-line:#1c1c1c;--side-hover:#141414;
   color-scheme:light;
 }
@@ -83,7 +83,7 @@ main{display:flex;flex-direction:column;gap:16px;padding:6px max(16px,env(safe-a
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .grid{display:grid;gap:12px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
-.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,165px),1fr))}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr))}
 .sm{font-size:13px}.xs{font-size:12px}.muted{color:var(--muted)}
 .good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.acc{color:var(--accent-ink)}
 .num{font:800 italic 24px var(--display);letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -176,7 +176,8 @@ td .nb{font:800 italic 16px var(--display)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 12px;font:600 13px var(--body);cursor:pointer;color:var(--muted)}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#000}
-.calc-out{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));margin-top:14px}
+.calc-out{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));margin-top:14px}
+.calc-out .num{font-size:24px;white-space:nowrap}
 .calc-out>div{background:var(--surface-2);border-radius:12px;padding:12px}
 
 .modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
@@ -191,6 +192,58 @@ td .nb{font:800 italic 16px var(--display)}
 .auth-box .btn.ghost{color:#f5f5f5;border-color:#2a2a2a}
 .auth-links{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .auth-msg{font-size:13.5px;border-radius:10px;padding:10px 12px;background:#161616}
+
+/* ---------- visual v2: cartões arredondados, números finos, barras em segmentos ---------- */
+body{font-weight:400}
+.top h1{font:500 24px var(--display);text-transform:none;letter-spacing:-.01em}
+@media (min-width:960px){.top h1{font-size:30px}}
+.card{border-radius:26px;padding:22px;border:1px solid rgba(255,255,255,.04);background:linear-gradient(160deg,color-mix(in srgb,var(--surface) 100%,#fff 3%) 0%,var(--surface) 60%)}
+:root[data-theme="light"] .card{border-color:var(--line);background:var(--surface)}
+.card h2{font:400 20px var(--display);text-transform:none;letter-spacing:-.01em;margin:0 0 4px}
+.kpi{border-radius:22px;padding:18px;border:1px solid rgba(255,255,255,.04);gap:8px}
+:root[data-theme="light"] .kpi{border-color:var(--line)}
+.num{font:300 30px var(--display);letter-spacing:-.02em}
+.kpi .num{font-size:24px;white-space:nowrap}
+.lbl{font:400 13.5px var(--body);letter-spacing:0;text-transform:none;color:var(--muted)}
+.btn{border-radius:999px;font:600 14px var(--display);text-transform:none;letter-spacing:0;padding:10px 20px}
+.btn.sec,.btn.ghost,.btn.danger{font-weight:500}
+.seg{border-radius:999px;padding:5px}
+.seg button{border-radius:999px;font:500 13.5px var(--body)}
+.pnav b{font:400 17px var(--display);text-transform:none}
+.pnav .icon-btn,.icon-btn{border-radius:999px}
+.pill{font:500 12.5px var(--body);padding:5px 12px}
+.hero-dica{border-left:0;border-radius:16px;padding:12px 16px}
+.dica{border-radius:16px}
+.dica i{border-radius:999px;font:600 13px var(--display)}
+.calc-out>div{border-radius:18px}
+td .nb{font:400 18px var(--display)}
+th{font:500 12px var(--body);letter-spacing:.02em;text-transform:none}
+.nav-i{border-radius:999px;font:500 15px var(--body)}
+.side-label{letter-spacing:.06em}
+.gauge .gv b{font:300 54px var(--display);letter-spacing:-.03em}
+.gauge .gv span{font:500 12px var(--body);letter-spacing:.08em}
+input,select,textarea{border-radius:14px}
+.mrow,.li{border-color:var(--line)}
+/* barra em segmentos */
+.sbar5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;height:9px}
+.sbar5 i{border-radius:99px;background:var(--off);overflow:hidden;display:block}
+.sbar5 b{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.sbar5.good b{background:var(--good);box-shadow:0 0 10px color-mix(in srgb,var(--good) 40%,transparent)}
+.sbar5.warn b{background:var(--warn)}.sbar5.bad b{background:var(--bad)}
+/* botão de seta nos cartões */
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.arrow{flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer;font-size:18px}
+.arrow:hover{border-color:var(--accent);color:var(--accent)}
+/* lista estilo placar (linha do tempo) */
+.score{position:relative;display:flex;flex-direction:column;gap:4px;margin-top:10px;padding-left:18px}
+.score::before{content:"";position:absolute;left:4px;top:14px;bottom:14px;width:1px;background:var(--good);opacity:.5}
+.score-i{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;padding:10px 0;cursor:pointer}
+.score-i::before{content:"";position:absolute;left:-17px;top:17px;width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.score-i[data-nv="good"]::before{background:var(--good)}.score-i[data-nv="warn"]::before{background:var(--warn)}.score-i[data-nv="bad"]::before{background:var(--bad)}
+.score-i b{font-weight:500}
+.score-i .sbar5{grid-column:1/-1}
+.score-i .nb{font:300 22px var(--display)}
+.score-i:hover b{color:var(--accent-ink)}
 </style>
 <script>(function(){try{var m=localStorage.getItem("bp-tema")||"dark";document.documentElement.dataset.theme=m}catch(e){}})()</script>
 </head>
@@ -565,23 +618,32 @@ function ir(tab){ S.tab = tab; menu(false); render(); window.scrollTo(0, 0); }
 
 /* ======================= COMPONENTES ======================= */
 function gaugeSVG(n){
-  const v = n == null ? 0 : Math.max(0, Math.min(10, n)), ang = Math.PI * (1 - v/10);
-  const cx = 130, cy = 130, r = 104;
+  // velocímetro de traços finos: vermelho → âmbar → verde até a nota; o resto apagado
+  const v = n == null ? 0 : Math.max(0, Math.min(10, n)), cx = 130, cy = 132, r = 108, N = 64;
   const pt = (a, rr) => [cx + rr*Math.cos(a), cy - rr*Math.sin(a)];
-  const arco = (a0, a1, rr) => { const [x0,y0] = pt(a0, rr), [x1,y1] = pt(a1, rr); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${rr} ${rr} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
-  const cor = n == null ? "var(--line)" : `var(--${nivelDe(n)})`;
-  const [nx, ny] = pt(ang, r - 22);
-  const ticks = [0, .25, .5, .75, 1].map(f => { const a = Math.PI*(1-f), [x0,y0] = pt(a, r - 20), [x1,y1] = pt(a, r + 12); return `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="var(--bg)" stroke-width="4"/>`; }).join("");
-  return `<svg viewBox="0 0 260 150" aria-hidden="true">
-    <path d="${arco(Math.PI, 0, r)}" fill="none" stroke="var(--surface-2)" stroke-width="22"/>
-    ${n != null && v > 0 ? `<path d="${arco(Math.PI, Math.max(ang, 0.001), r)}" fill="none" stroke="${cor}" stroke-width="22"/>` : ""}
-    ${ticks}
-    <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity="${n == null ? .3 : 1}"/>
-    <circle cx="${cx}" cy="${cy}" r="11" fill="var(--bg)" stroke="var(--accent)" stroke-width="5"/>
+  const mix = (a, b, t) => a.map((x, k) => Math.round(x + (b[k] - x) * t));
+  const R_ = [242,88,91], A_ = [245,192,59], G_ = [163,224,95];
+  const cor = f => { const c = f < .5 ? mix(R_, A_, f / .5) : mix(A_, G_, (f - .5) / .5); return `rgb(${c})`; };
+  let tk = "";
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1), a = Math.PI * (1 - f), [x0,y0] = pt(a, r - 30), [x1,y1] = pt(a, r);
+    const on = n != null && f <= v / 10 + 1e-9;
+    tk += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${on ? cor(f) : "var(--off)"}" stroke-width="2.4" stroke-linecap="round"/>`;
+  }
+  const marcas = [0, 5, 10].map(m => { const a = Math.PI * (1 - m/10), [x,y] = pt(a, r - 44); return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="var(--muted)" font-size="11" font-family="Outfit,sans-serif">${m}</text>`; }).join("");
+  const ang = Math.PI * (1 - v/10), [nx, ny] = pt(ang, r - 8), [bx1, by1] = pt(ang + Math.PI/2, 4), [bx2, by2] = pt(ang - Math.PI/2, 4);
+  return `<svg viewBox="0 0 260 146" aria-hidden="true">${tk}${marcas}
+    ${n == null ? "" : `<polygon points="${bx1.toFixed(1)},${by1.toFixed(1)} ${nx.toFixed(1)},${ny.toFixed(1)} ${bx2.toFixed(1)},${by2.toFixed(1)}" fill="var(--ink)"/>`}
+    <circle cx="${cx}" cy="${cy}" r="6" fill="var(--ink)" opacity="${n == null ? .3 : 1}"/>
   </svg>`;
 }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
-function barra(r, marca, ritmo){ const w = Math.max(0, Math.min(100, (r || 0) * 100)); const q = ritmo ? r / ritmo : r; const nv = r == null ? "" : q >= .89 ? "good" : q >= .67 ? "warn" : "bad"; return `<div class="bar ${nv}"><span style="width:${w}%"></span>${marca != null && marca > 0 ? `<i style="left:${Math.min(100, marca*100)}%"></i>` : ""}</div>`; }
+function barra(r, marca, ritmo){
+  const q = ritmo ? r / ritmo : r, nv = r == null ? "n" : q >= .89 ? "good" : q >= .67 ? "warn" : "bad";
+  const x = Math.max(0, Math.min(1, r || 0)) * 5;
+  return `<div class="sbar5 ${nv}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${Math.round(Math.max(0, Math.min(1, x - k)) * 100)}%"></b></i>`).join("")}</div>`;
+}
+
 function delta(v, ref, fmt){ if (ref == null || !isFinite(ref) || ref === 0) return ""; const d = v / ref - 1; return `<span class="${d >= 0 ? "good" : "bad"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(d*100))}% vs média</span>`; }
 
 function periodoBar(){
@@ -763,7 +825,7 @@ async function pgDashboard(){
   return `${avisoNovos}
   <section class="card"><div class="hero">
     <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
-    <div class="hero-txt"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
+    <div class="hero-txt"><div class="card-head"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><button class="arrow" data-tab="equipe" aria-label="Ver ranking da equipe">↗</button></div><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
       <div class="cmp">${notaS != null ? pill(nivelDe(notaS), `Semana: ${dec1(notaS)}`) : ""}${pill(proj >= metaMes && metaMes ? "good" : "warn", `Projeção do mês ${money0(proj)}`)}${varAnt != null ? pill(varAnt >= 0 ? "good" : "bad", `${varAnt >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(varAnt * 100))}% vs mesmo período de ${pD(antIni).toLocaleDateString("pt-BR",{month:"long"})}`) : ""}</div>
       ${notaM == null ? `<div class="hero-dica">Sem metas para ${esc(pm.label)}. Defina em Metas do mês para a nota aparecer.</div>`
         : `<div class="hero-dica ${nvM}">${nvM === "good" ? "Mantenha as metas visíveis e reconheça quem está puxando o resultado." : compFraco ? `O que mais pesa na nota é ${COMP_NOME[compFraco.k].toLowerCase()} (${pctTxt(compFraco.r)} do esperado até hoje). ${DICAS[compFraco.k][nivelDe(Math.min(10, compFraco.r * 9))]}` : ""}</div>`}
@@ -779,21 +841,21 @@ async function pgDashboard(){
   </div>
 
   <div class="grid g2">
-    <section class="card"><div class="row"><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))}</span></div>
-      ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Atendimentos</span><div class="num">${int(totDia.atendimentos)}</div></div><div><span class="lbl">Extras · assin.</span><div class="num">${money0(totDia.extras)} · ${int(totDia.assinaturas)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
+    <section class="card"><div class="card-head"><div><h2>${diaRef === h ? "Hoje" : "Ontem"}</h2><span class="sm muted">${esc(dataLonga(diaRef))}</span></div><button class="arrow" data-tab="lancar" aria-label="Lançar dia">↗</button></div>
+      ${lancUnicos.length ? `<div class="calc-out"><div><span class="lbl">Faturamento</span><div class="num">${money0(totDia.faturamento)}</div></div><div><span class="lbl">Atendimentos</span><div class="num">${int(totDia.atendimentos)}</div></div><div><span class="lbl">Extras</span><div class="num">${money0(totDia.extras)}</div></div><div><span class="lbl">Assinaturas</span><div class="num">${int(totDia.assinaturas)}</div></div></div>` : `<p class="empty">Nenhum lançamento ainda.</p>`}
       ${faltamLancar.length ? `<div class="hero-dica warn">Falta lançar: ${faltamLancar.map(b => esc(primeiroNome(b.nome))).join(", ")}.</div>` : ehDiaUtil(diaRef) ? `<div class="hero-dica good">Todos lançaram.</div>` : `<p class="sm muted" style="margin:8px 0 0">Dia de folga.</p>`}
     </section>
-    <section class="card"><h2>Destaques do mês</h2><div class="list" style="margin-top:6px">
+    <section class="card"><div class="card-head"><h2>Destaques do mês</h2><button class="arrow" data-tab="equipe" aria-label="Ver equipe">↗</button></div><div class="list" style="margin-top:6px">
       ${top ? `<div class="li"><span>${pill("good", "Melhor nota")} <b>${esc(top.b.nome)}</b></span><span class="nb good">${dec1(top.av.nota)}</span></div>` : ""}
       ${atencao.length ? atencao.map(l => `<div class="li" data-act="abrir" data-v="${l.b.id}" style="cursor:pointer"><span>${pill("bad", "Atenção")} <b>${esc(l.b.nome)}</b></span><span class="nb bad">${dec1(l.av.nota)}</span></div>`).join("") : comNota.length ? `<div class="li"><span class="sm muted">Ninguém com nota ruim no mês.</span></div>` : `<div class="li"><span class="sm muted">Sem notas ainda: defina as metas do mês.</span></div>`}
     </div></section>
   </div>
 
-  <section class="card"><div class="row"><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = meta</span></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
+  <section class="card"><div class="card-head"><div><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = meta</span></div><button class="arrow" data-tab="metas" aria-label="Metas do mês">↗</button></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
 
-  <section class="card"><div class="row"><h2>Nota de cada barbeiro</h2><button class="link" data-tab="equipe">Ver ranking completo</button></div>
-    <div class="list" style="margin-top:6px">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="li" data-act="abrir" data-v="${b.id}" style="cursor:pointer"><div style="flex:1;min-width:0"><div class="row"><b>${esc(b.nome)}</b><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></div>
-      <div class="bar ${av.nivel || ""}" style="margin-top:6px"><span style="width:${av.nota == null ? 0 : av.nota * 10}%"></span></div><div class="xs muted" style="margin-top:4px">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</div></div></div>`).join("")}</div></section>
+  <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
+    <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
+      <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
   ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm))}`;
 }
 function graficoAcumulado(lista, linhas, p){
