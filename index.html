@@ -436,6 +436,7 @@ const cloud = {
     }
     return out;
   },
+  async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw error; } },
   async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw error; },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
@@ -495,6 +496,7 @@ const demo = {
   async salvarMetas(lista){ const db = demoLoad(); lista.forEach(m => { const i = db.metas.findIndex(x => x.barbeiro_id === m.barbeiro_id && x.mes === m.mes); if (i >= 0) db.metas[i] = {...m}; else db.metas.push({...m}); }); demoSave(); },
   async lancamentos(ini, fim, barbeiro){ const me = await demo.me(); return demoLoad().lanc.filter(l => l.data >= ini && l.data <= fim && (barbeiro ? l.barbeiro_id === barbeiro : (me.papel === "admin" || l.barbeiro_id === me.id))).map(l => ({...l})).sort((a,b) => a.data < b.data ? -1 : 1); },
   async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
+  async salvarLancs(lista){ for (const l of lista) await demo.salvarLanc(l); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
   async resumoEquipe(ini, fim){
     const me = await demo.me(), db = demoLoad();
@@ -1060,6 +1062,83 @@ async function pgMetas(){
 function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:Math.round(parseNum(g("assinaturas"))), produtos:parseNum(g("produtos")) }; }); }
 
 /* ======================= PÁGINA: LANÇAR DIA ======================= */
+/* ======================= IMPORTAR DO CASHBARBER ======================= */
+// Relatório de comandas do CashBarber (CSV): uma linha por comanda ou cobrança de assinatura.
+// Por barbeiro e dia: atendimentos = comandas (assinante conta, mesmo com R$ 0), serviços R$ = soma das comandas,
+// assinaturas novas = cobrança feita no horário de atendimento para um cliente que teve comanda com ele no mesmo dia
+// (as renovações automáticas saem de madrugada e não contam).
+function lerCSV(txt){
+  txt = txt.replace(/^﻿/, "");
+  const sep = (txt.split("\n")[0].match(/;/g) || []).length > (txt.split("\n")[0].match(/,/g) || []).length ? ";" : ",";
+  const linhas = []; let campo = "", linha = [], aspas = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (aspas) { if (c === '"') { if (txt[i + 1] === '"') { campo += '"'; i++; } else aspas = false; } else campo += c; }
+    else if (c === '"') aspas = true;
+    else if (c === sep) { linha.push(campo); campo = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && txt[i + 1] === "\n") i++; linha.push(campo); campo = ""; if (linha.some(x => x.trim())) linhas.push(linha); linha = []; }
+    else campo += c;
+  }
+  linha.push(campo); if (linha.some(x => x.trim())) linhas.push(linha);
+  return linhas;
+}
+const semAcento = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+function lerCashBarber(txt){
+  const [cab, ...corpo] = lerCSV(txt), col = n => cab.findIndex(h => semAcento(h).includes(n));
+  const iP = col("profissional"), iC = col("cliente"), iT = col("tipo"), iV = col("valor"), iD = col("data");
+  if ([iP, iT, iV, iD].some(i => i < 0)) throw new Error("Não reconheci o arquivo. Use o relatório de comandas do CashBarber em CSV (colunas Profissional, Tipo, Valor e Data e hora).");
+  const dia = s => { const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}))?/); return m ? { data:`${m[3]}-${m[2]}-${m[1]}`, hora:+(m[4] || 12) } : null; };
+  const comandas = [], assin = [];
+  for (const r of corpo) {
+    const d = dia(r[iD]); if (!d) continue;
+    const tipo = semAcento(r[iT]), item = { prof:(r[iP] || "").trim(), cliente:semAcento(r[iC]), valor:parseNum(r[iV]), ...d };
+    if (tipo.startsWith("comanda") && item.prof && item.prof !== "N/A") comandas.push(item);
+    else if (tipo.startsWith("assinatura")) assin.push(item);
+  }
+  const g = new Map(), chave = (p, d) => p + "|" + d;
+  for (const c of comandas) { const k = chave(c.prof, c.data); const x = g.get(k) || { prof:c.prof, data:c.data, atendimentos:0, servicos:0, assinaturas:0, zero:0 }; x.atendimentos++; x.servicos += c.valor; if (!c.valor) x.zero++; g.set(k, x); }
+  let renov = 0, novasSem = 0;
+  for (const a of assin) {
+    if (a.hora < 6) { renov++; continue; }
+    const c = comandas.find(c => c.data === a.data && c.cliente && c.cliente === a.cliente);
+    if (c) g.get(chave(c.prof, c.data)).assinaturas++; else novasSem++;
+  }
+  const dias = [...new Set(comandas.map(c => c.data))].sort();
+  return { linhas:[...g.values()], profs:[...new Set(comandas.map(c => c.prof))].sort(), ini:dias[0], fim:dias.at(-1), renov, novasSem, total:comandas.length };
+}
+function casarProf(nome){
+  const n = semAcento(nome), mapa = lsGet("bp-map-cashbarber", {});
+  if (nome in mapa) return mapa[nome];
+  const lista = barbeiros().filter(b => b.aprovado !== false);
+  const igual = lista.find(b => semAcento(b.nome) === n); if (igual) return igual.id;
+  const [p1, ...resto] = n.split(" "), ult = resto.at(-1);
+  const parecidos = lista.filter(b => { const [q1, ...r2] = semAcento(b.nome).split(" "); return q1 === p1 && (!r2.length || !ult || r2.includes(ult) || resto.includes(r2.at(-1))); });
+  return parecidos.length === 1 ? parecidos[0].id : "";
+}
+function cardImportar(){
+  const I = S.imp;
+  const topo = `<div class="card-head"><div><h2>Importar do CashBarber</h2><span class="sm muted">Envie o relatório de comandas (CSV) de um dia, uma semana ou do mês inteiro. Você confere antes de salvar.</span></div></div>
+    <label class="btn sec" style="margin-top:12px;display:inline-flex;cursor:pointer">Escolher arquivo<input type="file" accept=".csv,text/csv" data-ch="importar" hidden></label>`;
+  if (!I) return `<section class="card">${topo}</section>`;
+  const opt = (p, sel) => `<select style="min-width:150px" data-ch="impMap" data-v="${esc(p)}"><option value="">Ignorar</option>${barbeiros().filter(b => b.aprovado !== false).map(b => `<option value="${b.id}" ${b.id === sel ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select>`;
+  const porProf = I.dados.profs.map(p => { const ls = I.dados.linhas.filter(l => l.prof === p); return { p, id:I.map[p], dias:ls.length, at:ls.reduce((s, l) => s + l.atendimentos, 0), zero:ls.reduce((s, l) => s + l.zero, 0), rs:ls.reduce((s, l) => s + l.servicos, 0), as:ls.reduce((s, l) => s + l.assinaturas, 0) }; });
+  const vao = porProf.filter(x => x.id), sub = I.existentes;
+  return `<section class="card">${topo}
+    <div class="hero-dica" style="margin-top:12px">${esc(I.arquivo)} · ${I.dados.ini === I.dados.fim ? esc(dataLonga(I.dados.ini)) : `${esc(dataBR(I.dados.ini))} a ${esc(dataBR(I.dados.fim))}`} · ${I.dados.total} comandas · ${I.dados.renov} renovações de assinatura ignoradas</div>
+    <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>No CashBarber</th><th>Barbeiro no app</th><th>Dias</th><th>Atend.</th><th>Assinantes</th><th>Valor</th><th>Assin. novas</th></tr></thead><tbody>
+      ${porProf.map(x => `<tr><td>${esc(x.p)}</td><td>${opt(x.p, x.id)}</td><td>${x.dias}</td><td>${x.at}</td><td>${x.zero}</td><td>${money0(x.rs)}</td><td>${x.as}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="xs muted" style="margin:10px 0 0">O valor das comandas entra como <b>Serviços R$</b>; extras e produtos ficam zerados porque o relatório não separa os itens. "Assinantes" são comandas de R$ 0 (atendimento coberto pela assinatura) e contam como atendimento.${I.dados.novasSem ? ` ${I.dados.novasSem} assinatura(s) nova(s) sem comanda no mesmo dia ficaram de fora.` : ""}</p>
+    ${sub ? `<div class="hero-dica warn" style="margin-top:10px">${sub} dia(s) já lançado(s) desses barbeiros serão substituídos pelos números do arquivo.</div>` : ""}
+    <div class="actions"><button class="btn" data-act="impSalvar" ${vao.length ? "" : "disabled"}>Lançar ${vao.reduce((s, x) => s + x.dias, 0)} dia(s) de ${vao.length} barbeiro(s)</button><button class="btn ghost" data-act="impCancelar">Cancelar</button></div>
+  </section>`;
+}
+async function contarExistentes(){
+  const I = S.imp, ids = new Set(Object.values(I.map).filter(Boolean));
+  const ja = await DB.lancamentos(I.dados.ini, I.dados.fim);
+  I.existentes = I.dados.linhas.filter(l => I.map[l.prof] && ja.some(j => j.barbeiro_id === I.map[l.prof] && j.data === l.data)).length;
+}
+
 async function pgLancar(){
   if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }  // só o admin lança
   const admin = S.me.papel === "admin";
@@ -1080,6 +1159,7 @@ async function pgLancar(){
     ${mL && fatLm ? `<div style="margin-top:10px">${barra(fatLm / mL, null, lm === mesIni(today()) ? Math.max(.05, uteisEntre(lm, today()) / uteisNoMes(lm)) : 1)}<div class="meta sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(fatLm)} faturados · ${pctTxt(fatLm / mL)}</span><span class="muted">falta ${money0(Math.max(0, mL - fatLm))}</span></div></div>` : ""}
     <div class="actions"><button class="btn" data-act="salvarMetaLoja">Salvar meta da barbearia</button></div>
   </section>
+  ${cardImportar()}
   <section class="card"><h2>Resultado do dia</h2>
     <div class="fgrid">
       ${admin ? `<label class="f">Barbeiro<select id="l-barb" data-ch="lancBarb">${ativos().map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>` : ""}
@@ -1248,6 +1328,16 @@ const ACOES = {
   tema: () => ACOES.temaSet(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
   temaSet: v => { document.documentElement.dataset.theme = v; try { localStorage.setItem("bp-tema", v); } catch(e) {} render(); },
   metaMes: v => { S.metaMes = addM(S.metaMes, +v); render(); },
+  impCancelar(){ S.imp = null; render(); },
+  async impSalvar(){
+    const I = S.imp; if (!I) return;
+    const lista = I.dados.linhas.filter(l => I.map[l.prof]).map(l => ({ barbeiro_id:I.map[l.prof], data:l.data, atendimentos:l.atendimentos, servicos:Math.round(l.servicos * 100) / 100, extras:0, qtd_extras:0, assinaturas:l.assinaturas, produtos:0, obs:"Importado do CashBarber" }));
+    if (I.existentes && !await confirmar(`${I.existentes} dia(s) já lançado(s) serão substituídos. Continuar?`)) return;
+    // um mesmo barbeiro do app ligado a dois nomes do CashBarber: soma os dois
+    const uni = new Map(); for (const l of lista) { const k = l.barbeiro_id + l.data, x = uni.get(k); if (x) ["atendimentos","servicos","assinaturas"].forEach(c => x[c] += l[c]); else uni.set(k, l); }
+    toast("Lançando…"); await DB.salvarLancs([...uni.values()]);
+    S.imp = null; toast(`${uni.size} lançamento(s) importado(s).`); render();
+  },
   lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
   async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
   async salvarMetas(){
@@ -1337,6 +1427,22 @@ document.addEventListener("change", async e => {
     try { toast("Enviando foto…"); const url = await DB.salvarFoto(id, await fotoQuadrada(f)); await DB.salvarPerfil(id, { foto_url:url }); await recarregarEquipe(); toast("Foto atualizada."); render(); }
     catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
     return;
+  }
+  if (e.target.dataset.ch === "importar") {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try {
+      const buf = await f.arrayBuffer(); let txt = new TextDecoder("utf-8").decode(buf);
+      if (txt.includes("\uFFFD")) txt = new TextDecoder("windows-1252").decode(buf);  // planilha salva no Excel em português
+      const dados = lerCashBarber(txt); if (!dados.linhas.length) throw new Error("O arquivo não tem comandas.");
+      S.imp = { arquivo:f.name, dados, map:Object.fromEntries(dados.profs.map(p => [p, casarProf(p)])) };
+      await contarExistentes(); render();
+    } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
+    return;
+  }
+  if (e.target.dataset.ch === "impMap") {
+    const p = e.target.dataset.v; S.imp.map[p] = e.target.value;
+    const m = lsGet("bp-map-cashbarber", {}); m[p] = e.target.value; lsSet("bp-map-cashbarber", m);
+    await contarExistentes(); render(); return;
   }
   const k = e.target.dataset.ch; if (!k) return;
   if (k === "lancData") { if (!e.target.value) return; S.lancData = e.target.value > today() ? today() : e.target.value; }
