@@ -549,7 +549,7 @@ const _uteisMes = {};
 // receita de assinaturas no mês: realizado e projeção pelos dias corridos (as cobranças caem todo dia)
 // com assinaturas lançadas por barbeiro, a planilha não soma de novo no faturamento da barbearia
 function assinLoja(asL, doMes, ini, fim){ return doMes.some(l => +l.assinatura_rs > 0) ? { tem:false, valor:0, proj:0, cobrancas:0 } : resumoAssin(asL, ini, fim); }
-const faltaColuna = e => /assinatura_rs/.test(e.message || "") ? new Error("Falta rodar o arquivo 009_assinatura_barbeiro.sql no Supabase.") : e;
+const faltaColuna = e => /assinatura_rs/.test(e.message || "") ? new Error("Falta rodar o arquivo 009_assinatura_barbeiro.sql no Supabase.") : /comissao_rs/.test(e.message || "") ? new Error("Falta rodar o arquivo 010_comissao.sql no Supabase.") : e;
 function resumoAssin(lista, ini, fim){
   const valor = lista.reduce((s, x) => s + (+x.valor || 0), 0), cobrancas = lista.reduce((s, x) => s + (+x.cobrancas || 0), 0);
   const ult = lista.length ? lista.map(x => String(x.data).slice(0, 10)).sort().at(-1) : null;
@@ -561,8 +561,8 @@ function uteisNoMes(m){ m = mesIni(m); if (_uteisMes[m + CFG.dias_trabalho]) ret
 function uteisEntre(a, b){ let n = 0; for (let d = a; d <= b; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return n; }
 
 function totais(lista){
-  const t = { atendimentos:0, servicos:0, extras:0, qtd_extras:0, assinaturas:0, produtos:0, assinatura_rs:0, dias:0 };
-  for (const l of lista) { t.atendimentos += +l.atendimentos||0; t.servicos += +l.servicos||0; t.extras += +l.extras||0; t.qtd_extras += +l.qtd_extras||0; t.assinaturas += +l.assinaturas||0; t.produtos += +l.produtos||0; t.assinatura_rs += +l.assinatura_rs||0; t.dias++; }
+  const t = { atendimentos:0, servicos:0, extras:0, qtd_extras:0, assinaturas:0, produtos:0, assinatura_rs:0, comissao_rs:0, dias:0 };
+  for (const l of lista) { t.atendimentos += +l.atendimentos||0; t.servicos += +l.servicos||0; t.extras += +l.extras||0; t.qtd_extras += +l.qtd_extras||0; t.assinaturas += +l.assinaturas||0; t.produtos += +l.produtos||0; t.assinatura_rs += +l.assinatura_rs||0; t.comissao_rs += +l.comissao_rs||0; t.dias++; }
   return comDerivados(t);
 }
 function comDerivados(t){
@@ -1205,9 +1205,11 @@ function cardImportar(){
   </section>`;
 }
 // Lançamentos guardam o que entrou em cada dia; o admin digita o total do mês até a data e o app calcula a diferença
-const CAMPOS_AC = [["servicos","Serviços"],["extras","Serviços extras"],["produtos","Produtos"],["assinatura_rs","Assinaturas"]];
+// a comissão é guardada do mesmo jeito (total do mês até a data), mas não soma no faturamento
+const CAMPOS_AC = [["servicos","Serviços"],["extras","Serviços extras"],["produtos","Produtos"],["assinatura_rs","Assinaturas"],["comissao_rs","Comissão até hoje"]];
+const CAMPOS_FAT = CAMPOS_AC.filter(([k]) => k !== "comissao_rs");
 const r2 = v => Math.round(v * 100) / 100;
-const linhaLanc = l => ({ data:l.data, atendimentos:+l.atendimentos || 0, qtd_extras:+l.qtd_extras || 0, assinaturas:+l.assinaturas || 0, obs:l.obs || null, servicos:+l.servicos || 0, extras:+l.extras || 0, produtos:+l.produtos || 0, assinatura_rs:+l.assinatura_rs || 0 });
+const linhaLanc = l => ({ data:l.data, atendimentos:+l.atendimentos || 0, qtd_extras:+l.qtd_extras || 0, assinaturas:+l.assinaturas || 0, obs:l.obs || null, servicos:+l.servicos || 0, extras:+l.extras || 0, produtos:+l.produtos || 0, assinatura_rs:+l.assinatura_rs || 0, comissao_rs:+l.comissao_rs || 0 });
 // ls = lançamentos do barbeiro no mês; novo = total do mês até o dia d. Devolve os dias a gravar (d e, se houver, a próxima atualização)
 function acumular(ls, d, novo){
   const antes = ls.filter(l => l.data < d), ult = antes.map(l => l.data).sort().at(-1);
@@ -1241,7 +1243,7 @@ async function pgLancar(){
     if (feito && S.lancEdit !== b.id) return `<div class="li" style="align-items:center"><span class="who" style="flex:1;min-width:0">${avatar(b, "av-sm")}<span style="min-width:0"><b>${esc(b.nome)}</b><br><span class="xs muted">${money0(atual.faturamento)} no mês${meta ? ` · ${pctTxt(atual.faturamento / meta)} da meta` : ""}</span></span></span>${pill("good", "✓ salvo")}<button class="btn ghost sm" data-act="lancEdit" data-v="${b.id}">Editar</button></div>`;
     return `<div class="mrow acum" data-b="${b.id}" data-base="${base}" data-meta="${meta}" data-ult="${ult ? dataBR(ult) : ""}">
       <div class="row"><span class="who">${avatar(b, "av-sm")}<b>${esc(b.nome)}</b></span><span class="xs muted">${ls.some(l => l.data === d) ? "atualizado neste dia" : ult ? `última atualização ${dataBR(ult)}` : "primeira do mês"}${depois ? " · tem data posterior" : ""}</span></div>
-      <div class="fgrid" style="margin-top:8px">${CAMPOS_AC.map(([k, n]) => `<label class="f">${n} R$<input inputmode="decimal" data-ac="${k}" value="${numIn(atual[k])}" placeholder="0"></label>`).join("")}</div>
+      <div class="fgrid" style="margin-top:8px">${CAMPOS_AC.map(([k, n]) => `<label class="f">${n} R$<input inputmode="decimal" data-ac="${k}" value="${numIn(atual[k])}" placeholder="0">${k === "comissao_rs" ? `<span class="xs muted" style="font-weight:500">não soma no faturamento</span>` : ""}</label>`).join("")}</div>
       <div class="sm acum-tot" style="margin-top:8px">${acumTxt(atual.faturamento, atual.faturamento - base, meta, ult ? dataBR(ult) : "")}</div>
       <div class="actions" style="margin-top:10px"><button class="btn" data-act="salvarAcum" data-v="${b.id}">Salvar ${esc(primeiroNome(b.nome))}</button>${feito ? `<button class="btn ghost" data-act="lancEdit" data-v="">Cancelar</button>` : ""}</div></div>`;
   };
@@ -1259,7 +1261,7 @@ async function pgLancar(){
   <section class="card"><div class="card-head"><div><h2>Atualizações de ${esc(mesNome(mi).toLowerCase())}</h2><span class="sm muted">Toque na data para corrigir. Excluir uma atualização passa o valor dela para a próxima.</span></div>
     <select data-ch="lancBarb" aria-label="Barbeiro">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></div>
     <div class="list" style="margin-top:8px">
-    ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod. · ${money0(t.assinatura_rs)} assin.)</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
+    ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod. · ${money0(t.assinatura_rs)} assin.${t.comissao_rs ? ` · ${money0(t.comissao_rs)} comissão` : ""})</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
   </div>${hist.length ? `<div class="actions"><button class="btn danger" data-act="apagarMes">Apagar o mês de ${esc(primeiroNome(nomeDe(bid)))}</button></div>` : ""}</section>
   ${cardImportar()}`;
 }
@@ -1280,11 +1282,19 @@ async function pgCalc(){
   const ganhoMes = doMes.reduce((s, l) => s + ((+l.servicos||0) + (+l.extras||0)) * cs + (+l.produtos||0) * cp, 0);
   const feitos = uteisEntre(mi, doMes.some(l => l.data === h) ? h : addD(h, -1));
   const proj = feitos ? fatMes / feitos * u : 0;
+  // comissão real lançada pelo admin; sem ela, vale a estimativa pela %
+  const comReal = totais(doMes).comissao_rs, temReal = comReal > 0, ganhoAtual = temReal ? comReal : ganhoMes;
   const metaFat = m ? +m.faturamento || 0 : 0;
   $("#psub").textContent = "Sua meta de ganho e onde você pode chegar no mês";
   const linha = (rot, fat, sub) => `<div class="li"><span style="flex:1;min-width:0"><b>${rot}</b><br><span class="xs muted">${sub}</span></span><span style="text-align:right;white-space:nowrap"><b class="acc">${money0(fat * taxa)}</b><br><span class="xs muted">faturando ${money0(fat)}</span></span></div>`;
   return `<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de ganho no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
-    ${ganho ? `${barra(ganhoMes / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoMes)} ganhos até agora · ${pctTxt(ganhoMes / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoMes))}</span></div>` : ""}
+    ${ganho ? `${barra(ganhoAtual / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoAtual)} ${temReal ? "de comissão até hoje" : "ganhos até agora (estimado)"} · ${pctTxt(ganhoAtual / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoAtual))}</span></div>` : ""}
+    ${temReal ? `<div class="calc-out">
+      <div><span class="lbl">Comissão até hoje</span><div class="num acc">${money0(comReal)}</div><span class="xs muted">lançada pelo admin</span></div>
+      <div><span class="lbl">Meta de ganho</span><div class="num">${ganho ? money0(ganho) : "—"}</div>${ganho ? `<span class="xs muted">${comReal >= ganho ? `passou ${money0(comReal - ganho)}` : `falta ${money0(ganho - comReal)}`}</span>` : ""}</div>
+      <div><span class="lbl">No ritmo atual</span><div class="num ${ganho && feitos && comReal / feitos * u >= ganho ? "good" : ""}">${feitos ? money0(comReal / feitos * u) : "—"}</div><span class="xs muted">de comissão no mês</span></div>
+      <div><span class="lbl">Estimada pela %</span><div class="num">${money0(ganhoMes)}</div><span class="xs muted">${Math.abs(comReal - ganhoMes) < 1 ? "igual à real" : `${comReal > ganhoMes ? "real " + money0(comReal - ganhoMes) + " acima" : "real " + money0(ganhoMes - comReal) + " abaixo"}`}</span></div>
+    </div>` : ""}
     <div id="calcOut">${ganho ? calcOut(ganho, taxa, ticket, u, m) : `<p class="empty">O admin ainda não definiu a sua meta de ganho.</p>`}</div>
   </section>
   <section class="card"><h2>Onde você pode chegar</h2><span class="sm muted">Quanto você ganha no mês em cada cenário (estimativa pela sua comissão).</span><div class="list" style="margin-top:8px">
@@ -1548,7 +1558,7 @@ async function recarregarEquipe(){ S.equipe = await DB.equipe(); const eu = S.eq
 // Lançamentos: soma do mês e quanto entrou desde a última atualização, enquanto digita
 document.addEventListener("input", e => {
   const row = e.target.closest(".acum"); if (!row) return;
-  const v = k => parseNum(row.querySelector(`[data-ac="${k}"]`).value), tot = CAMPOS_AC.reduce((s, [k]) => s + v(k), 0), dif = tot - +row.dataset.base, meta = +row.dataset.meta;
+  const v = k => parseNum(row.querySelector(`[data-ac="${k}"]`).value), tot = CAMPOS_FAT.reduce((s, [k]) => s + v(k), 0), dif = tot - +row.dataset.base, meta = +row.dataset.meta;
   row.querySelector(".acum-tot").innerHTML = acumTxt(tot, dif, meta, row.dataset.ult);
 });
 document.addEventListener("change", async e => {
