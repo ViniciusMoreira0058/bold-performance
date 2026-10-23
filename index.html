@@ -882,8 +882,12 @@ function cardRitmo(lancMes, metasB, perfil){
   const proj = feitos ? t.faturamento / feitos * (feitos + restantes) : 0;
   if (!m || !(+m.faturamento > 0)) return `<section class="card"><h2>Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><p class="empty">${S.me.papel === "admin" ? "Defina a meta deste mês em Meta do barbeiro." : "O admin ainda não definiu a sua meta deste mês."}</p></section>`;
   const esperado = feitos / ((feitos + restantes) || 1);
-  return cardFalta(`Meta de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}`, t.faturamento, +m.faturamento, esperado, restantes,
-    `<div><span class="lbl">Projeção</span><div class="num ${proj >= +m.faturamento ? "good" : "warn"}">${money0(proj)}</div><span class="xs muted">no ritmo atual</span></div>`);
+  // mesma linha de progresso da meta da barbearia, com quanto falta para a meta dele
+  const meta = +m.faturamento, falta = Math.max(0, meta - t.faturamento), deveria = meta * esperado;
+  return `<section class="card"><div class="card-head"><div><h2>Meta de faturamento de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}</h2><span class="sm muted">${money0(meta)} · ${feitos + restantes} dias de trabalho no mês${feitos ? ` · ${feitos} já passaram` : ""}</span></div></div>
+    <div style="margin-top:12px">${barra(t.faturamento / meta, null, feitos ? Math.max(.05, esperado) : null)}<div class="sm" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px"><span><b>${money0(t.faturamento)}</b> faturados · ${pctTxt(t.faturamento / meta)}</span><span class="muted">${falta ? `falta ${money0(falta)}${restantes ? ` · ${money0(falta / restantes)} por dia` : ""}` : `passou ${money0(t.faturamento - meta)}`}</span></div>
+      <div style="text-align:center;margin-top:14px"><span class="lbl">${falta ? "Falta para bater a meta" : "Meta batida! Passou"}</span><div class="num ${falta ? "acc" : "good"}" style="font-size:32px">${money0(falta || t.faturamento - meta)}</div></div>
+      <div class="cmp" style="margin-top:10px;justify-content:center">${feitos ? pill(t.faturamento >= deveria ? "good" : t.faturamento >= deveria * .9 ? "warn" : "bad", `Esperado até agora ${money0(deveria)}`) : ""}${feitos ? pill(proj >= meta ? "good" : "warn", `Projeção ${money0(proj)}`) : ""}</div></div></section>`;
 }
 
 // executa depois que o HTML entra na página (gráficos)
