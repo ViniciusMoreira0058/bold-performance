@@ -404,6 +404,8 @@ const cloud = {
   async salvarConvite(c){ const { error } = await sb.from("convites").upsert({ ...c, email:c.email.toLowerCase() }); if (error) throw error; },
   async excluirConvite(email){ const { error } = await sb.from("convites").delete().eq("email", email); if (error) throw error; },
   async metas(){ const { data, error } = await sb.from("metas").select("*"); if (error) throw error; return data; },
+  async metasLoja(){ const { data, error } = await sb.from("metas_barbearia").select("*"); if (error) { console.warn(error); return []; } return data; },
+  async salvarMetaLoja(mes, faturamento){ const { error } = await sb.from("metas_barbearia").upsert({ mes, faturamento, atualizado_em:new Date().toISOString() }); if (error) throw new Error(/metas_barbearia/.test(error.message) ? "Falta rodar o arquivo 005_meta_barbearia.sql no Supabase." : error.message); },
   async salvarMetas(lista){ const { error } = await sb.from("metas").upsert(lista.map(m => ({ ...m, atualizado_em:new Date().toISOString() }))); if (error) throw error; },
   async lancamentos(ini, fim, barbeiro){
     let out = [], from = 0;
@@ -447,7 +449,7 @@ function gerarDemo(){
     });
   }
   equipe.push({ id:"b5", nome:"Pedro Alves", email:"pedro@demo", papel:"barbeiro", ativo:false, aprovado:false, comissao_servicos:50, comissao_produtos:10, ganho_desejado:0, ticket_medio:0 });
-  return { v:2, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc };
+  return { v:2, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc, metasLoja:[{ mes:mesIni(hoje), faturamento:75000 }] };
 }
 let demoDB = null;
 const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 2) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
@@ -469,6 +471,8 @@ const demo = {
   },
   async excluirConvite(email){ const db = demoLoad(); db.convites = db.convites.filter(x => x.email !== email); demoSave(); },
   async metas(){ const me = await demo.me(); return demoLoad().metas.filter(m => me.papel === "admin" || m.barbeiro_id === me.id).map(m => ({...m})); },
+  async metasLoja(){ return (demoLoad().metasLoja || []).map(m => ({...m})); },
+  async salvarMetaLoja(mes, faturamento){ const db = demoLoad(); db.metasLoja = (db.metasLoja || []).filter(m => m.mes !== mes).concat({ mes, faturamento }); demoSave(); },
   async salvarMetas(lista){ const db = demoLoad(); lista.forEach(m => { const i = db.metas.findIndex(x => x.barbeiro_id === m.barbeiro_id && x.mes === m.mes); if (i >= 0) db.metas[i] = {...m}; else db.metas.push({...m}); }); demoSave(); },
   async lancamentos(ini, fim, barbeiro){ const me = await demo.me(); return demoLoad().lanc.filter(l => l.data >= ini && l.data <= fim && (barbeiro ? l.barbeiro_id === barbeiro : (me.papel === "admin" || l.barbeiro_id === me.id))).map(l => ({...l})).sort((a,b) => a.data < b.data ? -1 : 1); },
   async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
@@ -510,6 +514,7 @@ function moverPeriodo(p, dir){
 let CFG = { nome:"Barbearia", dias_trabalho:[1,2,3,4,5,6] };
 const ehDiaUtil = s => CFG.dias_trabalho.includes(pD(s).getDay());
 const _uteisMes = {};
+function metaLoja(m){ const x = (S.metasLoja || []).find(y => String(y.mes).slice(0,10) === mesIni(m)); return x ? +x.faturamento || 0 : 0; }
 function uteisNoMes(m){ m = mesIni(m); if (_uteisMes[m + CFG.dias_trabalho]) return _uteisMes[m + CFG.dias_trabalho]; let n = 0; for (let d = m, f = mesFim(m); d <= f; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return _uteisMes[m + CFG.dias_trabalho] = n || 1; }
 function uteisEntre(a, b){ let n = 0; for (let d = a; d <= b; d = addD(d, 1)) if (ehDiaUtil(d)) n++; return n; }
 
@@ -647,7 +652,7 @@ function frasePrincipal(av, nome){
 const S = {
   me:null, equipe:[], metas:[], convites:[],
   tab:null, per:{ tipo:"mes", ref:today() }, ver:null,      // ver = barbeiro aberto pelo admin
-  lancData:today(), lancBarb:null, metaMes:mesIni(today()),
+  lancData:today(), lancBarb:null, metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
 };
 const charts = [];
 const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovado !== false);
@@ -877,7 +882,9 @@ async function pgDashboard(){
   const temHoje = doMes.some(l => l.data === h);
   const feitos = uteisEntre(pm.ini, temHoje ? h : ontem), restantes = uteisEntre(temHoje ? addD(h, 1) : h, pm.fim);
   const proj = feitos ? totM.faturamento / feitos * (feitos + restantes) : 0;
-  const metaMes = metaM.cheia.faturamento, falta = Math.max(0, metaMes - totM.faturamento);
+  // meta geral da barbearia (lançada pelo admin); sem ela vale a soma das metas dos barbeiros
+  const mLoja = metaLoja(pm.ini), metaMes = mLoja || metaM.cheia.faturamento, falta = Math.max(0, metaMes - totM.faturamento);
+  const metaAteLoja = mLoja ? mLoja * uteisEntre(pm.ini, temHoje ? h : ontem) / uteisNoMes(pm.ini) : metaM.faturamento;
 
   // hoje / ontem
   const diaRef = temHoje ? h : ontem, lancDia = lanc.filter(l => l.data === diaRef && dosAtivos(l));
@@ -904,7 +911,7 @@ async function pgDashboard(){
     </div></div></section>
 
   <div class="kpis">
-    ${kpiMeta("Faturamento do mês", totM.faturamento, metaM.faturamento, metaM.cheia.faturamento, money0)}
+    ${kpiMeta(mLoja ? "Faturamento da barbearia" : "Faturamento do mês", totM.faturamento, metaAteLoja, metaMes, money0)}
     ${tile("Falta para a meta", money0(falta), restantes ? `${money0(falta / restantes)} por dia · ${restantes} dias` : "mês encerrado", falta ? "" : "good")}
     ${kpiMeta("Serviços extras", totM.extras, metaM.extras, metaM.cheia.extras, money0)}
     ${kpiMeta("Assinaturas", totM.assinaturas, metaM.assinaturas, metaM.cheia.assinaturas, int)}
@@ -923,20 +930,20 @@ async function pgDashboard(){
     </div></section>
   </div>
 
-  <section class="card"><div class="card-head"><div><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = meta</span></div><button class="arrow" data-tab="metas" aria-label="Metas do mês">↗</button></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
+  <section class="card"><div class="card-head"><div><h2>Faturamento acumulado do mês</h2><span class="xs muted">linha laranja = equipe · tracejada = ${mLoja ? "meta da barbearia" : "meta"}</span></div><button class="arrow" data-tab="${mLoja ? "lancar" : "metas"}" aria-label="Metas">↗</button></div><div class="chart-box"><canvas id="chAcum"></canvas></div></section>
 
   <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
     <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div class="who" style="min-width:0">${avatar(b, "av-sm")}<div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
       <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
-  ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm))}`;
+  ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm, mLoja))}`;
 }
-function graficoAcumulado(lista, linhas, p){
+function graficoAcumulado(lista, linhas, p, mLoja){
   const el = document.getElementById("chAcum"); if (!el || !window.Chart) return;
   const h = today(), labels = [], real = [], meta = [];
   let ac = 0, am = 0;
   for (let d = p.ini; d <= p.fim; d = addD(d, 1)) {
     labels.push(dataBR(d));
-    am += linhas.reduce((s, l) => s + metaNoIntervalo(metasDe(l.b.id), d, d).faturamento, 0);
+    am += mLoja ? (ehDiaUtil(d) ? mLoja / uteisNoMes(p.ini) : 0) : linhas.reduce((s, l) => s + metaNoIntervalo(metasDe(l.b.id), d, d).faturamento, 0);
     meta.push(Math.round(am));
     if (d <= h) { ac += lista.filter(l => l.data === d).reduce((s, l) => s + (+l.servicos||0) + (+l.extras||0) + (+l.produtos||0), 0); real.push(Math.round(ac)); } else real.push(null);
   }
@@ -1041,8 +1048,16 @@ async function pgLancar(){
   const x = l || {};
   $("#psub").textContent = "Registre o resultado do dia de um barbeiro";
   const semana = await DB.lancamentos(addD(d, -6), d, bid);
+  const lm = S.lojaMes, mL = metaLoja(lm), somaBarb = ativos().reduce((s, b) => s + (+(metasDe(b.id).find(x => String(x.mes).slice(0,10) === lm) || {}).faturamento || 0), 0);
+  const fatLm = lm <= today() ? totais((await DB.lancamentos(lm, mesFim(lm))).filter(l => ativos().some(b => b.id === l.barbeiro_id))).faturamento : 0;
   const f = (k, rot, dica, modo) => `<label class="f">${rot}<input id="l-${k}" inputmode="${modo || "decimal"}" value="${modo === "numeric" ? (x[k] || "") : numIn(x[k])}" placeholder="0">${dica ? `<span class="xs muted" style="font-weight:500">${dica}</span>` : ""}</label>`;
-  return `<section class="card">
+  return `<section class="card"><div class="card-head"><div><h2>Meta de faturamento da barbearia</h2><span class="sm muted">Meta geral do mês. Ela aparece no Dashboard no lugar da soma das metas dos barbeiros.</span></div></div>
+    <div class="pnav" style="margin:10px 0"><button class="icon-btn" data-act="lojaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(lm))}</b><button class="icon-btn" data-act="lojaMes" data-v="1" aria-label="Próximo mês">›</button></div>
+    <div class="fgrid"><label class="f">Meta do mês (R$)<input id="ml-fat" inputmode="decimal" value="${numIn(mL)}" placeholder="${somaBarb ? numIn(Math.round(somaBarb)) + " (soma dos barbeiros)" : "ex.: 80000"}"><span class="xs muted" style="font-weight:500">${somaBarb ? `Soma das metas dos barbeiros: ${money0(somaBarb)}` : "Nenhum barbeiro com meta neste mês"}</span></label></div>
+    ${mL && fatLm ? `<div style="margin-top:10px">${barra(fatLm / mL, null, lm === mesIni(today()) ? Math.max(.05, uteisEntre(lm, today()) / uteisNoMes(lm)) : 1)}<div class="meta sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(fatLm)} faturados · ${pctTxt(fatLm / mL)}</span><span class="muted">falta ${money0(Math.max(0, mL - fatLm))}</span></div></div>` : ""}
+    <div class="actions"><button class="btn" data-act="salvarMetaLoja">Salvar meta da barbearia</button></div>
+  </section>
+  <section class="card"><h2>Resultado do dia</h2>
     <div class="fgrid">
       ${admin ? `<label class="f">Barbeiro<select id="l-barb" data-ch="lancBarb">${ativos().map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>` : ""}
       <label class="f">Data<input type="date" id="l-data" data-ch="lancData" value="${d}" max="${today()}"></label>
@@ -1182,6 +1197,7 @@ async function carregarBase(){
   const [cfg, eq, mt] = await Promise.all([DB.config(), DB.equipe(), DB.metas()]);
   CFG = { nome:cfg.nome, dias_trabalho:(cfg.dias_trabalho || [1,2,3,4,5,6]).map(Number) };
   S.equipe = eq; S.metas = mt;
+  S.metasLoja = S.me.papel === "admin" ? await DB.metasLoja() : [];
   const eu = eq.find(e => e.id === S.me.id); if (eu) S.me = eu;
 }
 
@@ -1198,6 +1214,8 @@ const ACOES = {
   tema: () => ACOES.temaSet(document.documentElement.dataset.theme === "light" ? "dark" : "light"),
   temaSet: v => { document.documentElement.dataset.theme = v; try { localStorage.setItem("bp-tema", v); } catch(e) {} render(); },
   metaMes: v => { S.metaMes = addM(S.metaMes, +v); render(); },
+  lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
+  async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
   async salvarMetas(){ await DB.salvarMetas(lerMetas()); S.metas = await DB.metas(); toast("Metas salvas."); render(); },
   copiarMetas(){
     const ant = addM(S.metaMes, -1);
