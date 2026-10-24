@@ -702,7 +702,7 @@ function frasePrincipal(av, nome){
 const S = {
   me:null, equipe:[], metas:[], convites:[],
   tab:null, per:{ tipo:"mes", ref:today() }, ver:null,      // ver = barbeiro aberto pelo admin
-  lancData:today(), lancBarb:null, lancEdit:null, metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
+  lancData:today(), lancBarb:null, lancEdit:null, relMes:mesIni(today()), rel:"fechamento", metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
 };
 const charts = [];
 const barbeiros = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovado !== false);
@@ -714,7 +714,7 @@ const primeiroNome = n => (n || "").split(" ")[0];
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
@@ -729,6 +729,7 @@ const ICONE = {
   ajustes:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>',
   calc:'<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8.5 7.5h7M8.5 12h1M12 12h1M15 12h.5M8.5 16h1M12 16h1M15 16h.5"/></svg>',
   loja:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-5h6v5"/><path d="M4 20h16"/></svg>',
+  relatorios:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 16v-3M12 16V9M16 16v-5"/></svg>',
   historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
 };
 // "ver como barbeiro": o admin navega pela visão do barbeiro (sem Ajustes, que mexeria na conta do admin)
@@ -1129,6 +1130,133 @@ function cardEditarMeta(b){
     <div class="actions"><button class="btn" data-act="salvarMetaBarb" data-v="${b.id}">Salvar meta</button><button class="btn ghost" data-act="editarMeta" data-v="">Cancelar</button></div></section>`;
 }
 
+/* ======================= PÁGINA: RELATÓRIOS (ADMIN) ======================= */
+const RELS = [["fechamento","Fechamento do mês"],["evolucao","Evolução mês a mês"],["mix","Mix de vendas"],["comissao","Comissão x faturamento"],["metas","Histórico de metas"]];
+let _relCSV = null;  // tabela do relatório aberto, para baixar
+const pcCSV = r => r === "" || r == null || !isFinite(r) ? "" : Math.round(r * 1000) / 10;  // fração → % para a planilha
+// comissão do barbeiro no mês: a lançada pelo admin ou a estimada pela %
+const comissaoDe = (t, b) => t.comissao_rs > 0 ? { v:t.comissao_rs, real:true } : { v:ganhoEstimado(t, b), real:false };
+async function pgRelatorios(){
+  if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }
+  const m = S.relMes, h = today(), ini12 = addM(m, -11), fim = mesFim(m);
+  $("#psub").textContent = "Resultados da equipe para analisar e baixar em planilha";
+  const lanc = await DB.lancamentos(ini12, fim);
+  // barbeiros ativos e quem teve lançamento no período
+  const bs = barbeiros().filter(b => b.aprovado !== false && (b.ativo || lanc.some(l => l.barbeiro_id === b.id)));
+  const doMesDe = (id, mm) => lanc.filter(l => l.barbeiro_id === id && l.data >= mm && l.data <= mesFim(mm));
+  const metaDe = (id, mm) => +(metasDe(id).find(x => String(x.mes).slice(0,10) === mm) || {}).faturamento || 0;
+  const meses = Array.from({ length:12 }, (_, i) => addM(ini12, i)).filter(mm => mm <= mesIni(h));
+  const nomeMes = mm => pD(mm).toLocaleDateString("pt-BR", { month:"short", year:"2-digit" }).replace(". de ", "/").replace(".", "");
+  const nav = `<div class="pnav"><button class="icon-btn" data-act="relMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="relMes" data-v="1" aria-label="Próximo mês" ${m >= mesIni(h) ? "disabled" : ""}>›</button></div>`;
+  const chips = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">${RELS.map(([k, n]) => `<button class="chip" aria-pressed="${S.rel === k}" data-act="rel" data-v="${k}">${n}</button>`).join("")}</div>`;
+  const pm = periodo("mes", m);
+  const linhasMes = bs.map(b => { const ls = doMesDe(b.id, m), t = totais(ls), av = avaliar(ls, metasDe(b.id), pm), meta = metaDe(b.id, m), c = comissaoDe(t, b); return { b, t, av, meta, c }; }).filter(l => l.t.dias || l.meta);
+  const tot = totais(linhasMes.flatMap(l => doMesDe(l.b.id, m)));
+  const cab = (...c) => `<thead><tr>${c.map(x => `<th>${x}</th>`).join("")}</tr></thead>`;
+  const tabela = (head, rows, foot) => `<div class="tbl-wrap"><table>${head}<tbody>${rows}${foot || ""}</tbody></table></div>`;
+  const quem = b => `<span class="who">${avatar(b, "av-sm")}<b>${esc(primeiroNome(b.nome))}</b></span>`;
+  const baixar = `<div class="actions"><button class="btn sec" data-act="baixarRel">Baixar planilha (Excel)</button></div>`;
+  const vazio = `<p class="empty">Sem lançamentos em ${esc(mesNome(m))}.</p>`;
+  let corpo = "", titulo = RELS.find(r => r[0] === S.rel)[1], sub = "";
+  _relCSV = null;
+
+  if (S.rel === "fechamento") {
+    sub = `${esc(mesNome(m))} · ordenado por faturamento`;
+    const ord = linhasMes.slice().sort((a, b) => b.t.faturamento - a.t.faturamento), metaTot = ord.reduce((s, l) => s + l.meta, 0), comTot = ord.reduce((s, l) => s + l.c.v, 0);
+    const mL = metaLoja(m);
+    _relCSV = [["Posição","Barbeiro","Faturamento","Meta","% da meta","Serviços","Extras","Produtos","Assinaturas","Comissão","Comissão real?","Nota"],
+      ...ord.map((l, i) => [i + 1, l.b.nome, l.t.faturamento, l.meta, l.meta ? pcCSV(l.t.faturamento / l.meta) : "", l.t.servicos, l.t.extras, l.t.produtos, l.t.assinatura_rs, l.c.v, l.c.real ? "sim" : "estimada", l.av.nota ?? ""]),
+      ["", "Total", tot.faturamento, metaTot, metaTot ? pcCSV(tot.faturamento / metaTot) : "", tot.servicos, tot.extras, tot.produtos, tot.assinatura_rs, comTot, "", ""]];
+    corpo = ord.length ? `<div class="kpis" style="margin-bottom:12px">
+        <div class="kpi"><span class="lbl">Faturamento da equipe</span><span class="num">${money0(tot.faturamento)}</span><div class="meta"><span>${mL ? `${pctTxt(tot.faturamento / mL)} da meta da barbearia (${money0(mL)})` : metaTot ? `${pctTxt(tot.faturamento / metaTot)} da soma das metas` : "sem meta"}</span></div></div>
+        <div class="kpi"><span class="lbl">Bateram a meta</span><span class="num">${ord.filter(l => l.meta && l.t.faturamento >= l.meta).length} de ${ord.filter(l => l.meta).length}</span><div class="meta"><span>barbeiros com meta no mês</span></div></div>
+        <div class="kpi"><span class="lbl">Comissões</span><span class="num">${money0(comTot)}</span><div class="meta"><span>${pctTxt(tot.faturamento ? comTot / tot.faturamento : 0)} do faturamento</span></div></div>
+        <div class="kpi"><span class="lbl">Destaque</span><span class="num" style="font-size:20px">${esc(primeiroNome(ord[0].b.nome))}</span><div class="meta"><span>${money0(ord[0].t.faturamento)}${ord[0].meta ? ` · ${pctTxt(ord[0].t.faturamento / ord[0].meta)} da meta` : ""}</span></div></div></div>
+      ${tabela(cab("#","Barbeiro","Faturamento","Meta","%","Serviços","Extras","Produtos","Assin.","Comissão","Nota"),
+        ord.map((l, i) => `<tr class="click" data-act="abrir" data-v="${l.b.id}"><td>${i + 1}º</td><td>${quem(l.b)}</td><td><b>${money0(l.t.faturamento)}</b></td><td>${l.meta ? money0(l.meta) : "—"}</td><td class="${l.meta ? (l.t.faturamento >= l.meta ? "good" : l.t.faturamento >= l.meta * .9 ? "warn" : "bad") : "muted"}">${l.meta ? pctTxt(l.t.faturamento / l.meta) : "—"}</td><td>${money0(l.t.servicos)}</td><td>${money0(l.t.extras)}</td><td>${money0(l.t.produtos)}</td><td>${money0(l.t.assinatura_rs)}</td><td>${money0(l.c.v)}${l.c.real ? "" : '<span class="xs muted"> est.</span>'}</td><td><span class="nb ${l.av.nivel || "muted"}">${l.av.nota == null ? "—" : dec1(l.av.nota)}</span></td></tr>`).join(""),
+        `<tr class="avg"><td></td><td>Total</td><td>${money0(tot.faturamento)}</td><td>${metaTot ? money0(metaTot) : "—"}</td><td>${metaTot ? pctTxt(tot.faturamento / metaTot) : ""}</td><td>${money0(tot.servicos)}</td><td>${money0(tot.extras)}</td><td>${money0(tot.produtos)}</td><td>${money0(tot.assinatura_rs)}</td><td>${money0(comTot)}</td><td></td></tr>`)}
+      ${m === mesIni(h) ? `<p class="xs muted" style="margin:8px 0 0">Mês em andamento: valores até ${esc(dataBR(lanc.filter(l => l.data >= m).map(l => l.data).sort().at(-1) || h))}.</p>` : ""}` : vazio;
+  }
+
+  if (S.rel === "evolucao") {
+    sub = `Até ${esc(mesNome(m))}, mês a mês`;
+    let linhas = meses.map((mm, i) => { const t = totais(lanc.filter(l => l.data >= mm && l.data <= mesFim(mm))); return { mm, t, por:Object.fromEntries(bs.map(b => [b.id, totais(doMesDe(b.id, mm)).faturamento])) }; });
+    const prim = linhas.findIndex(x => x.t.faturamento > 0); linhas = prim < 0 ? [] : linhas.slice(prim);  // começa no primeiro mês com dados
+    // o mês em andamento não é comparado com um mês fechado
+    linhas.forEach((x, i) => { x.andamento = x.mm === mesIni(h); x.varr = !x.andamento && i && linhas[i - 1].t.faturamento ? x.t.faturamento / linhas[i - 1].t.faturamento - 1 : null; });
+    const bsCom = bs.filter(b => linhas.some(x => x.por[b.id]));
+    _relCSV = [["Mês","Faturamento da equipe","Variação %","Serviços","Extras","Produtos","Assinaturas", ...bsCom.map(b => b.nome)],
+      ...linhas.map(x => [mesNome(x.mm), x.t.faturamento, pcCSV(x.varr), x.t.servicos, x.t.extras, x.t.produtos, x.t.assinatura_rs, ...bsCom.map(b => x.por[b.id])])];
+    corpo = linhas.length ? `<div class="chart-box"><canvas id="chRel"></canvas></div>
+      ${tabela(cab("Mês","Equipe","Variação", ...bsCom.map(b => esc(primeiroNome(b.nome)))),
+        linhas.slice().reverse().map(x => `<tr><td>${esc(nomeMes(x.mm))}</td><td><b>${money0(x.t.faturamento)}</b></td><td class="${x.varr == null || Math.round(x.varr * 100) === 0 ? "muted" : x.varr > 0 ? "good" : "bad"}">${x.andamento ? '<span class="xs">em andamento</span>' : x.varr == null ? "—" : Math.round(x.varr * 100) === 0 ? "0%" : `${x.varr > 0 ? "▲" : "▼"} ${Math.abs(Math.round(x.varr * 100))}%`}</td>${bsCom.map(b => `<td>${x.por[b.id] ? money0(x.por[b.id]) : "—"}</td>`).join("")}</tr>`).join(""))}
+      ${posRender(() => graficoRel(linhas.map(x => nomeMes(x.mm)), linhas.map(x => Math.round(x.t.faturamento))))}` : vazio;
+  }
+
+  if (S.rel === "mix") {
+    sub = `${esc(mesNome(m))} · quanto de cada faturamento vem de cada tipo de venda`;
+    const K = [["servicos","Serviços"],["extras","Extras"],["produtos","Produtos"],["assinatura_rs","Assinaturas"]];
+    const med = Object.fromEntries(K.map(([k]) => [k, tot.faturamento ? tot[k] / tot.faturamento : 0]));
+    const ls = linhasMes.filter(l => l.t.faturamento > 0).sort((a, b) => b.t.faturamento - a.t.faturamento);
+    _relCSV = [["Barbeiro","Faturamento", ...K.map(([, n]) => n + " R$"), ...K.map(([, n]) => n + " %")],
+      ...ls.map(l => [l.b.nome, l.t.faturamento, ...K.map(([k]) => l.t[k]), ...K.map(([k]) => pcCSV(l.t[k] / l.t.faturamento))]),
+      ["Equipe", tot.faturamento, ...K.map(([k]) => tot[k]), ...K.map(([k]) => pcCSV(med[k]))]];
+    const cel = (l, k) => { const r = l.t[k] / l.t.faturamento, cls = k !== "servicos" && med[k] > 0 ? (r <= med[k] * .8 ? "bad" : r >= med[k] * 1.2 ? "good" : "") : ""; return `<td class="${cls}">${pctTxt(r)}<br><span class="xs muted">${money0(l.t[k])}</span></td>`; };
+    const fracos = ls.flatMap(l => ["extras","produtos"].filter(k => med[k] > 0 && l.t[k] / l.t.faturamento <= med[k] * .8).map(k => `${esc(primeiroNome(l.b.nome))} em ${k === "extras" ? "extras" : "produtos"}`));
+    corpo = ls.length ? `${tabela(cab("Barbeiro","Faturamento", ...K.map(([, n]) => n)),
+        ls.map(l => `<tr class="click" data-act="abrir" data-v="${l.b.id}"><td>${quem(l.b)}</td><td><b>${money0(l.t.faturamento)}</b></td>${K.map(([k]) => cel(l, k)).join("")}</tr>`).join(""),
+        `<tr class="avg"><td>Equipe</td><td>${money0(tot.faturamento)}</td>${K.map(([k]) => `<td>${pctTxt(med[k])}</td>`).join("")}</tr>`)}
+      <p class="xs muted" style="margin:8px 0 0">Verde = 20% ou mais acima da participação média da equipe; vermelho = 20% ou mais abaixo.</p>
+      ${fracos.length ? `<div class="hero-dica warn" style="margin-top:10px">Onde dá para crescer: ${fracos.join(", ")}. Vale treinar a oferta no atendimento.</div>` : ""}` : vazio;
+  }
+
+  if (S.rel === "comissao") {
+    sub = `${esc(mesNome(m))} · comissão lançada (ou estimada pela %) contra o faturamento`;
+    const ls = linhasMes.filter(l => l.t.faturamento > 0 || l.c.v > 0).sort((a, b) => b.t.faturamento - a.t.faturamento), comTot = ls.reduce((s, l) => s + l.c.v, 0);
+    _relCSV = [["Barbeiro","Faturamento","Comissão","Comissão real?","% do faturamento","Meta de comissão","% da meta de comissão","Fica para a barbearia"],
+      ...ls.map(l => { const mc = +l.b.ganho_desejado || 0; return [l.b.nome, l.t.faturamento, l.c.v, l.c.real ? "sim" : "estimada", l.t.faturamento ? pcCSV(l.c.v / l.t.faturamento) : "", mc, mc ? pcCSV(l.c.v / mc) : "", l.t.faturamento - l.c.v]; }),
+      ["Total", tot.faturamento, comTot, "", tot.faturamento ? pcCSV(comTot / tot.faturamento) : "", "", "", tot.faturamento - comTot]];
+    corpo = ls.length ? `<div class="kpis" style="margin-bottom:12px">
+        <div class="kpi"><span class="lbl">Comissões do mês</span><span class="num">${money0(comTot)}</span><div class="meta"><span>${pctTxt(tot.faturamento ? comTot / tot.faturamento : 0)} do faturamento</span></div></div>
+        <div class="kpi"><span class="lbl">Fica para a barbearia</span><span class="num">${money0(tot.faturamento - comTot)}</span><div class="meta"><span>faturamento − comissões</span></div></div></div>
+      ${tabela(cab("Barbeiro","Faturamento","Comissão","% do fat.","Meta de comissão","% da meta","Fica p/ barbearia"),
+        ls.map(l => { const mc = +l.b.ganho_desejado || 0; return `<tr class="click" data-act="abrir" data-v="${l.b.id}"><td>${quem(l.b)}</td><td>${money0(l.t.faturamento)}</td><td><b>${money0(l.c.v)}</b>${l.c.real ? "" : '<span class="xs muted"> est.</span>'}</td><td>${l.t.faturamento ? pctTxt(l.c.v / l.t.faturamento) : "—"}</td><td>${mc ? money0(mc) : "—"}</td><td class="${mc ? (l.c.v >= mc ? "good" : "warn") : "muted"}">${mc ? pctTxt(l.c.v / mc) : "—"}</td><td>${money0(l.t.faturamento - l.c.v)}</td></tr>`; }).join(""),
+        `<tr class="avg"><td>Total</td><td>${money0(tot.faturamento)}</td><td>${money0(comTot)}</td><td>${tot.faturamento ? pctTxt(comTot / tot.faturamento) : ""}</td><td></td><td></td><td>${money0(tot.faturamento - comTot)}</td></tr>`)}
+      ${ls.some(l => !l.c.real) ? `<p class="xs muted" style="margin:8px 0 0">"est." = comissão estimada pela % de cada barbeiro, porque a comissão do mês ainda não foi lançada.</p>` : ""}` : vazio;
+  }
+
+  if (S.rel === "metas") {
+    sub = `Últimos ${meses.length} meses · % da meta de faturamento em cada mês`;
+    const atual = mesIni(h);
+    const ls = bs.map(b => {
+      const r = meses.map(mm => { const meta = metaDe(b.id, mm), f = totais(doMesDe(b.id, mm)).faturamento; return { mm, meta, f, r:meta ? f / meta : null }; });
+      const fechados = r.filter(x => x.mm < atual && x.r != null), batidas = fechados.filter(x => x.r >= 1).length;
+      let seq = 0; for (let i = fechados.length - 1; i >= 0 && fechados[i].r >= 1; i--) seq++;
+      return { b, r, batidas, fechados:fechados.length, seq };
+    }).filter(l => l.r.some(x => x.meta || x.f));
+    _relCSV = [["Barbeiro", ...meses.map(mm => mesNome(mm) + " (% da meta)"), "Meses batidos", "Meses com meta (fechados)", "Sequência atual"],
+      ...ls.map(l => [l.b.nome, ...l.r.map(x => pcCSV(x.r)), l.batidas, l.fechados, l.seq])];
+    corpo = ls.length ? `${tabela(cab("Barbeiro", "Bateu", "Seq.", ...meses.slice().reverse().map(mm => esc(nomeMes(mm)))),
+        ls.sort((a, b) => b.batidas - a.batidas || b.seq - a.seq).map(l => `<tr class="click" data-act="abrir" data-v="${l.b.id}"><td>${quem(l.b)}</td><td><b>${l.batidas}/${l.fechados}</b></td><td>${l.seq ? `${l.seq} 🔥` : "0"}</td>${l.r.slice().reverse().map(x => `<td class="${x.r == null || x.mm === atual ? "muted" : x.r >= 1 ? "good" : x.r >= .9 ? "warn" : "bad"}">${x.r == null ? "—" : pctTxt(x.r)}${x.mm === atual && x.r != null ? '<span class="xs muted"> *</span>' : ""}</td>`).join("")}</tr>`).join(""))}
+      <p class="xs muted" style="margin:8px 0 0">"Bateu" conta os meses fechados com meta. "Seq." é quantos meses seguidos ele bateu até o último mês fechado. * mês em andamento.</p>` : `<p class="empty">Sem metas ou lançamentos nos últimos meses.</p>`;
+  }
+
+  return `${nav}${chips}<section class="card"><div class="card-head"><div><h2>${titulo}</h2><span class="sm muted">${sub}</span></div></div><div style="margin-top:10px">${corpo}</div>${_relCSV ? baixar : ""}</section>`;
+}
+function graficoRel(labels, dados){
+  const el = document.getElementById("chRel"); if (!el || !window.Chart) return;
+  charts.push(new Chart(el, { type:"bar", data:{ labels, datasets:[{ label:"Faturamento", data:dados, backgroundColor:corVar("--accent"), borderRadius:4, maxBarThickness:36 }] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:c => money0(c.raw) } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:corVar("--muted"), maxRotation:0, autoSkip:true } }, y:{ beginAtZero:true, grid:{ color:corVar("--line") }, ticks:{ color:corVar("--muted"), callback:v => v >= 1000 ? (v/1000).toLocaleString("pt-BR") + " mil" : v } } } } }));
+}
+// planilha em CSV com ; e vírgula decimal, que o Excel em português abre direto
+function baixarCSV(nome, linhas){
+  const cel = v => typeof v === "number" ? String(Math.round(v * 10000) / 10000).replace(".", ",") : `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const txt = "﻿" + linhas.map(l => l.map(cel).join(";")).join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type:"text/csv;charset=utf-8" })); a.download = nome; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
 /* ======================= PÁGINA: META DA BARBEARIA (ADMIN) ======================= */
 async function pgLoja(){
   if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }
@@ -1409,7 +1537,7 @@ async function pgAjustes(){
 }
 
 /* ======================= RENDER ======================= */
-const PAGINAS = { loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -1479,6 +1607,9 @@ const ACOES = {
     toast("Salvando…"); await DB.salvarAssinDia(I.dados.assinDias);
     S.imp = null; toast(`Assinaturas de ${I.dados.assinDias.length} dia(s) salvas.`); render();
   },
+  relMes: v => { const n = addM(S.relMes, +v); if (n <= mesIni(today())) { S.relMes = n; render(); } },
+  rel: v => { S.rel = v; render(); },
+  baixarRel(){ if (!_relCSV) return; baixarCSV(`bold-${S.rel}-${S.relMes.slice(0, 7)}.csv`, _relCSV); toast("Planilha baixada."); },
   lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
   async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
   async salvarMetas(){
