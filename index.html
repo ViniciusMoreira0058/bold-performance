@@ -191,6 +191,10 @@ td .nb{font:800 italic 16px var(--display)}
 .modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
 .modal>div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:380px;width:100%}
 .modal p{margin:0 0 14px;font-size:15px}
+.aviso-box{text-align:center;border-color:var(--accent)!important;position:relative;overflow:hidden}
+.aviso-box .sym{width:64px;height:auto;color:var(--accent);display:block;margin:2px auto 8px}
+.aviso-box h2{margin:0 0 2px;font-size:21px}
+.aviso-box .btn{width:100%;margin-top:6px}
 /* login */
 .auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(120% 70% at 50% 0%,#1d0d03 0%,#000 60%)}
 .auth-box{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px;color:#f5f5f5}
@@ -352,6 +356,7 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
   <nav class="bottom" id="bottomnav" aria-label="Atalhos"></nav>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="modal" id="aviso" role="dialog" aria-modal="true" aria-labelledby="avisoTit" hidden data-act="avisoOk"></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" hidden><div><p id="modalTxt"></p><div class="row" style="justify-content:flex-end"><button class="btn ghost" id="modalNao">Cancelar</button><button class="btn" id="modalSim">Confirmar</button></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -508,7 +513,7 @@ const demo = {
   async salvarMetaLoja(mes, faturamento){ const db = demoLoad(); db.metasLoja = (db.metasLoja || []).filter(m => m.mes !== mes).concat({ mes, faturamento }); demoSave(); },
   async salvarMetas(lista){ const db = demoLoad(); lista.forEach(m => { const i = db.metas.findIndex(x => x.barbeiro_id === m.barbeiro_id && x.mes === m.mes); if (i >= 0) db.metas[i] = {...m}; else db.metas.push({...m}); }); demoSave(); },
   async lancamentos(ini, fim, barbeiro){ const me = await demo.me(); return demoLoad().lanc.filter(l => l.data >= ini && l.data <= fim && (barbeiro ? l.barbeiro_id === barbeiro : (me.papel === "admin" || l.barbeiro_id === me.id))).map(l => ({...l})).sort((a,b) => a.data < b.data ? -1 : 1); },
-  async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); if (i >= 0) db.lanc[i] = {...l}; else db.lanc.push({...l}); demoSave(); },
+  async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); const x = { ...l, atualizado_em:new Date().toISOString() }; if (i >= 0) db.lanc[i] = x; else db.lanc.push(x); demoSave(); },
   async salvarLancs(lista){ for (const l of lista) await demo.salvarLanc(l); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
   async resumoEquipe(ini, fim){
@@ -1572,6 +1577,10 @@ const ACOES = {
   dia: v => { v = +v; const s = new Set(CFG.dias_trabalho); s.has(v) ? s.delete(v) : s.add(v); if (!s.size) return; CFG.dias_trabalho = [...s].sort(); render(); },
   async salvarCfg(){ CFG.nome = $("#a-nome").value.trim() || "Barbearia"; await DB.salvarConfig(CFG); toast("Ajustes salvos."); render(); },
   async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
+  avisoOk(v, ev){
+    const av = $("#aviso"); if (ev && ev.target.closest(".aviso-box") && !ev.target.closest("button")) return;  // clique dentro do cartão não fecha
+    lsSet("bp-visto-" + S.me.id, av.dataset.marca || ""); av.hidden = true; if (S.tab !== "painel") ir("painel");
+  },
   verComo(v){
     const b = S.equipe.find(e => e.id === v); if (!b) return;
     S.comoAdmin = S.me; S.me = { ...b, papel:"barbeiro" }; S.tab = "painel"; S.ver = null;
@@ -1587,7 +1596,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.tab) { if (t.dataset.tab === "equipe" || t.dataset.tab === "dashboard") S.ver = null; ir(t.dataset.tab); return; }
   const fn = ACOES[t.dataset.act]; if (!fn) return;
   if (t.tagName === "BUTTON") t.disabled = true;
-  try { await fn(t.dataset.v); } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
+  try { await fn(t.dataset.v, e); } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
   finally { if (t.tagName === "BUTTON" && document.contains(t)) t.disabled = false; }
 });
 // reduz a foto para 320×320 (recorte central) antes de enviar
@@ -1776,19 +1785,46 @@ async function iniciar(){
   faixaComo();
   await render();
   const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
+  avisoAtualizacao().catch(console.error);
   setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
 }
 // ao voltar para o app (celular desbloqueado, troca de aba, PWA reaberto) recarrega os dados
 // e, se saiu uma versão nova do app, recarrega a página sozinho
 let _saiuEm = 0, _versao = null;
 const versaoApp = async () => { try { const r = await fetch(location.pathname, { cache:"no-store" }); if (!r.ok) return null; const t = await r.text(); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h; } catch (e) { return null; } };
+// barbeiro: ao abrir o app depois de o admin atualizar os números, aparece um aviso com o resumo do mês
+async function avisoAtualizacao(){
+  if (S.me.papel !== "barbeiro" || S.comoAdmin) return;
+  const h = today(), mi = mesIni(h), ls = await DB.lancamentos(mi, h, S.me.id);
+  if (!ls.length) return;
+  const marca = ls.map(l => l.atualizado_em || l.data).sort().at(-1), chave = "bp-visto-" + S.me.id;
+  if (lsGet(chave, "") >= marca) return;
+  const t = totais(ls), m = metasDe(S.me.id).find(x => String(x.mes).slice(0,10) === mi), meta = m ? +m.faturamento || 0 : 0;
+  const ult = ls.map(l => l.data).sort().at(-1), temHoje = ult === h;
+  const feitos = uteisEntre(mi, temHoje ? h : addD(h, -1)), restantes = uteisEntre(temHoje ? addD(h, 1) : h, mesFim(h)), u = feitos + restantes || 1;
+  const falta = Math.max(0, meta - t.faturamento), esperado = meta * feitos / u, porDia = restantes ? falta / restantes : 0;
+  const nome = primeiroNome(S.me.nome), mes = pD(h).toLocaleDateString("pt-BR", { month:"long" });
+  const frase = !meta ? "Abra o seu painel e veja a sua nota, a sua evolução e onde dá para crescer."
+    : t.faturamento >= meta ? "Meta batida! 🏆 Agora é passar dela: cada atendimento a mais vira comissão no seu bolso."
+    : t.faturamento >= esperado ? "Você está no ritmo da meta. Mantenha a constância e feche o mês acima dela."
+    : t.faturamento >= esperado * .85 ? `Você está perto do ritmo: faltam <b>${money0(falta)}</b>, cerca de <b>${money0(porDia)} por dia</b>. Um extra ou um produto a mais por cliente já fecha essa conta.`
+    : `Faltam <b>${money0(falta)}</b> para a meta, cerca de <b>${money0(porDia)} por dia</b>. Ainda dá tempo: agenda cheia e um extra em cada atendimento fazem a virada.`;
+  const metaCom = +S.me.ganho_desejado || 0, com = t.comissao_rs > 0 ? t.comissao_rs : ganhoEstimado(t, S.me);
+  const av = $("#aviso");
+  av.innerHTML = `<div class="aviso-box">${SIMBOLO()}<h2 id="avisoTit">Seus números foram atualizados</h2><p class="xs muted" style="margin:0 0 14px">Resultados até ${esc(dataBR(ult))}</p>
+    <p>${esc(nome)}, você já faturou <b>${money0(t.faturamento)}</b> em ${esc(mes)}${meta ? `, <b>${pctTxt(t.faturamento / meta)}</b> da sua meta` : ""}.</p>
+    <p class="sm">${frase}</p>
+    ${metaCom ? `<p class="sm muted">Comissão${t.comissao_rs > 0 ? "" : " estimada"}: <b>${money0(com)}</b> de ${money0(metaCom)} (${pctTxt(com / metaCom)})</p>` : ""}
+    <button class="btn" data-act="avisoOk">Ver minhas métricas</button></div>`;
+  av.dataset.marca = marca; av.hidden = false;
+}
 async function aoVoltar(){
   if (Date.now() - _saiuEm < 20000) return;  // voltou rápido: nada mudou
   const v = await versaoApp(); if (v != null && _versao != null && v !== _versao) return location.reload();
   if (!S.me || $("#app").hidden || $("#app").classList.contains("menu-open")) return;
   // telas com formulário não são redesenhadas para não apagar o que está sendo digitado
   const form = ["lancar","metas","barbeiros","ajustes"].includes(S.tab) || document.activeElement?.matches?.("input,textarea,select");
-  try { await carregarBase(); if (!form) await render(); } catch (e) { console.error(e); }
+  try { await carregarBase(); if (!form) await render(); await avisoAtualizacao(); } catch (e) { console.error(e); }
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) _saiuEm = Date.now(); else aoVoltar(); });
 addEventListener("pageshow", e => { if (e.persisted) { _saiuEm = 0; aoVoltar(); } });
