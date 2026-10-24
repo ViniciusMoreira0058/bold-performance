@@ -1813,11 +1813,14 @@ async function avisoAtualizacao(){
   const frase = !alvo ? "Abra o seu painel e veja a sua nota, a sua evolução e onde dá para crescer."
     : feito >= alvo ? (metaCom ? "Meta de comissão batida! 🏆 Daqui pra frente, cada atendimento é dinheiro a mais no seu bolso." : "Meta batida! 🏆 Agora é passar dela: cada atendimento a mais vira comissão no seu bolso.")
     : feito >= esperado ? "Você está no ritmo da meta. Mantenha a constância e feche o mês acima dela."
-    : feito >= esperado * .85 ? `Você está perto do ritmo: faltam <b>${money0(falta)}</b>${metaCom ? " de comissão" : ""}, cerca de <b>${money0(porDia)} por dia</b>. Um extra ou um produto a mais por cliente já fecha essa conta.`
-    : `Faltam <b>${money0(falta)}</b>${metaCom ? " de comissão" : ""} para a meta, cerca de <b>${money0(porDia)} por dia</b>. Ainda dá tempo: agenda cheia e um extra em cada atendimento fazem a virada.`;
+    : feito >= esperado * .85 ? "Você está perto do ritmo. Um extra ou um produto a mais por cliente já fecha essa conta."
+    : "Ainda dá tempo: agenda cheia e um extra em cada atendimento fazem a virada.";
+  // quanto falta, em destaque
+  const faltaBox = alvo && falta > 0 ? `<div style="background:var(--accent-soft);border-radius:12px;padding:10px 12px;margin:0 0 14px"><span class="lbl">Falta para bater a sua meta${metaCom ? " de comissão" : ""}</span><div class="num acc" style="font-size:30px;line-height:1.15">${money0(falta)}</div>${restantes ? `<span class="xs muted">cerca de ${money0(porDia)} por dia de trabalho · ${restantes} dia${restantes > 1 ? "s" : ""} restante${restantes > 1 ? "s" : ""}</span>` : ""}</div>` : "";
   const av = $("#aviso");
   av.innerHTML = `<div class="aviso-box">${SIMBOLO()}<h2 id="avisoTit">Seus números foram atualizados</h2><p class="xs muted" style="margin:0 0 14px">Resultados até ${esc(dataBR(ult))}</p>
     <p>${principal}</p>
+    ${faltaBox}
     <p class="sm">${frase}</p>
     ${metaCom && meta ? `<p class="sm muted">Meta de faturamento: <b>${money0(t.faturamento)}</b> de ${money0(meta)} (${pctTxt(t.faturamento / meta)})</p>` : ""}
     <button class="btn" data-act="avisoOk">Ver minhas métricas</button></div>`;
