@@ -482,10 +482,10 @@ function gerarDemo(){
     });
   }
   equipe.push({ id:"b5", nome:"Pedro Alves", email:"pedro@demo", papel:"barbeiro", ativo:false, aprovado:false, comissao_servicos:50, comissao_produtos:10, ganho_desejado:0, ticket_medio:0 });
-  return { v:2, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc, metasLoja:[{ mes:mesIni(hoje), faturamento:75000 }] };
+  return { v:3, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc, metasLoja:[{ mes:mesIni(hoje), faturamento:75000 }] };
 }
 let demoDB = null;
-const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 2) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
+const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 3) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
 const demoSave = () => lsSet("bp-demo", demoDB);
 const demo = {
   async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; return demoLoad().equipe.find(e => e.id === id) || null; },
