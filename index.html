@@ -1802,19 +1802,24 @@ async function avisoAtualizacao(){
   const t = totais(ls), m = metasDe(S.me.id).find(x => String(x.mes).slice(0,10) === mi), meta = m ? +m.faturamento || 0 : 0;
   const ult = ls.map(l => l.data).sort().at(-1), temHoje = ult === h;
   const feitos = uteisEntre(mi, temHoje ? h : addD(h, -1)), restantes = uteisEntre(temHoje ? addD(h, 1) : h, mesFim(h)), u = feitos + restantes || 1;
-  const falta = Math.max(0, meta - t.faturamento), esperado = meta * feitos / u, porDia = restantes ? falta / restantes : 0;
   const nome = primeiroNome(S.me.nome), mes = pD(h).toLocaleDateString("pt-BR", { month:"long" });
-  const frase = !meta ? "Abra o seu painel e veja a sua nota, a sua evolução e onde dá para crescer."
-    : t.faturamento >= meta ? "Meta batida! 🏆 Agora é passar dela: cada atendimento a mais vira comissão no seu bolso."
-    : t.faturamento >= esperado ? "Você está no ritmo da meta. Mantenha a constância e feche o mês acima dela."
-    : t.faturamento >= esperado * .85 ? `Você está perto do ritmo: faltam <b>${money0(falta)}</b>, cerca de <b>${money0(porDia)} por dia</b>. Um extra ou um produto a mais por cliente já fecha essa conta.`
-    : `Faltam <b>${money0(falta)}</b> para a meta, cerca de <b>${money0(porDia)} por dia</b>. Ainda dá tempo: agenda cheia e um extra em cada atendimento fazem a virada.`;
-  const metaCom = +S.me.ganho_desejado || 0, com = t.comissao_rs > 0 ? t.comissao_rs : ganhoEstimado(t, S.me);
+  // mensagem principal pela comissão (meta de comissão); sem ela, pelo faturamento
+  const metaCom = +S.me.ganho_desejado || 0, real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, S.me);
+  const [alvo, feito] = metaCom ? [metaCom, com] : [meta, t.faturamento];
+  const falta = Math.max(0, alvo - feito), esperado = alvo * feitos / u, porDia = restantes ? falta / restantes : 0;
+  const principal = metaCom
+    ? `${esc(nome)}, sua comissão${real ? "" : " estimada"} em ${esc(mes)} já está em <b>${money0(com)}</b>, <b>${pctTxt(com / metaCom)}</b> da sua meta de comissão.`
+    : `${esc(nome)}, você já faturou <b>${money0(t.faturamento)}</b> em ${esc(mes)}${meta ? `, <b>${pctTxt(t.faturamento / meta)}</b> da sua meta` : ""}.`;
+  const frase = !alvo ? "Abra o seu painel e veja a sua nota, a sua evolução e onde dá para crescer."
+    : feito >= alvo ? (metaCom ? "Meta de comissão batida! 🏆 Daqui pra frente, cada atendimento é dinheiro a mais no seu bolso." : "Meta batida! 🏆 Agora é passar dela: cada atendimento a mais vira comissão no seu bolso.")
+    : feito >= esperado ? "Você está no ritmo da meta. Mantenha a constância e feche o mês acima dela."
+    : feito >= esperado * .85 ? `Você está perto do ritmo: faltam <b>${money0(falta)}</b>${metaCom ? " de comissão" : ""}, cerca de <b>${money0(porDia)} por dia</b>. Um extra ou um produto a mais por cliente já fecha essa conta.`
+    : `Faltam <b>${money0(falta)}</b>${metaCom ? " de comissão" : ""} para a meta, cerca de <b>${money0(porDia)} por dia</b>. Ainda dá tempo: agenda cheia e um extra em cada atendimento fazem a virada.`;
   const av = $("#aviso");
   av.innerHTML = `<div class="aviso-box">${SIMBOLO()}<h2 id="avisoTit">Seus números foram atualizados</h2><p class="xs muted" style="margin:0 0 14px">Resultados até ${esc(dataBR(ult))}</p>
-    <p>${esc(nome)}, você já faturou <b>${money0(t.faturamento)}</b> em ${esc(mes)}${meta ? `, <b>${pctTxt(t.faturamento / meta)}</b> da sua meta` : ""}.</p>
+    <p>${principal}</p>
     <p class="sm">${frase}</p>
-    ${metaCom ? `<p class="sm muted">Comissão${t.comissao_rs > 0 ? "" : " estimada"}: <b>${money0(com)}</b> de ${money0(metaCom)} (${pctTxt(com / metaCom)})</p>` : ""}
+    ${metaCom && meta ? `<p class="sm muted">Meta de faturamento: <b>${money0(t.faturamento)}</b> de ${money0(meta)} (${pctTxt(t.faturamento / meta)})</p>` : ""}
     <button class="btn" data-act="avisoOk">Ver minhas métricas</button></div>`;
   av.dataset.marca = marca; av.hidden = false;
 }
