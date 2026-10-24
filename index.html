@@ -152,7 +152,7 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
 .kpi .num{font-size:22px;word-break:break-word}
 .kpi .meta{display:flex;justify-content:space-between;gap:4px 8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.kpi .meta>span{white-space:nowrap}
+.kpi .meta>span{white-space:normal;overflow-wrap:anywhere}
 
 /* dicas */
 .dicas{display:flex;flex-direction:column;gap:10px;margin-top:10px}
@@ -168,7 +168,7 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
 th{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
+th:first-child,td:first-child,th.l,td:has(>.who){text-align:left}
 tr.click{cursor:pointer}tr.click:hover td{background:var(--surface-2)}
 tr.avg td{font-weight:700;color:var(--muted);border-bottom:0}
 td .nb{font:800 italic 16px var(--display)}
@@ -244,6 +244,9 @@ input,select,textarea{border-radius:14px}
 .sbar5.warn b{background:var(--warn)}.sbar5.bad b{background:var(--bad)}
 /* botão de seta nos cartões */
 .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+/* padrão do cabeçalho do cartão: título à esquerda (quebra linha se precisar), ação à direita sem encolher */
+.card-head>:first-child{min-width:0;flex:1 1 auto}
+.card-head>.btn,.card-head>select,.card-head>.arrow{flex:0 0 auto;white-space:nowrap}
 .arrow{flex:0 0 44px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer;font-size:18px}
 .arrow:hover{border-color:var(--accent);color:var(--accent)}
 /* lista estilo placar (linha do tempo) */
@@ -1121,7 +1124,7 @@ function cardEditarMeta(b){
   const tit = `Meta de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}`;
   if (S.editMeta !== b.id) {
     const it = (r, v) => `<div><span class="lbl">${r}</span><div class="num" style="font-size:18px">${v}</div></div>`;
-    return `<section class="card"><div class="card-head"><h2>${tit}</h2><button class="btn sec sm" data-act="editarMeta" data-v="${b.id}">Editar meta</button></div>
+    return `<section class="card"><div class="card-head"><h2>${tit}</h2><button class="btn sm" data-act="editarMeta" data-v="${b.id}">Editar meta</button></div>
       <div class="calc-out" style="margin-top:10px">${it("Meta de faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Meta de comissão", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}</div></section>`;
   }
   const f = (k, r, v, modo) => `<label class="f">${r}<input data-em="${k}" inputmode="${modo || "decimal"}" value="${modo ? (v || "") : numIn(v)}" placeholder="0"></label>`;
@@ -1152,10 +1155,10 @@ async function pgRelatorios(){
   const pm = periodo("mes", m);
   const linhasMes = bs.map(b => { const ls = doMesDe(b.id, m), t = totais(ls), av = avaliar(ls, metasDe(b.id), pm), meta = metaDe(b.id, m), c = comissaoDe(t, b); return { b, t, av, meta, c }; }).filter(l => l.t.dias || l.meta);
   const tot = totais(linhasMes.flatMap(l => doMesDe(l.b.id, m)));
-  const cab = (...c) => `<thead><tr>${c.map(x => `<th>${x}</th>`).join("")}</tr></thead>`;
+  const cab = (...c) => `<thead><tr>${c.map(x => `<th${x === "Barbeiro" ? ' class="l"' : ""}>${x}</th>`).join("")}</tr></thead>`;
   const tabela = (head, rows, foot) => `<div class="tbl-wrap"><table>${head}<tbody>${rows}${foot || ""}</tbody></table></div>`;
   const quem = b => `<span class="who">${avatar(b, "av-sm")}<b>${esc(primeiroNome(b.nome))}</b></span>`;
-  const baixar = `<div class="actions"><button class="btn sec" data-act="baixarRel">Baixar planilha (Excel)</button></div>`;
+  const baixar = `<button class="btn sm" data-act="baixarRel">Exportar planilha</button>`;
   const vazio = `<p class="empty">Sem lançamentos em ${esc(mesNome(m))}.</p>`;
   let corpo = "", titulo = RELS.find(r => r[0] === S.rel)[1], sub = "";
   _relCSV = null;
@@ -1218,7 +1221,7 @@ async function pgRelatorios(){
       ["Total", tot.faturamento, comTot, "", tot.faturamento ? pcCSV(comTot / tot.faturamento) : "", "", "", tot.faturamento - comTot]];
     corpo = ls.length ? `<div class="kpis" style="margin-bottom:12px">
         <div class="kpi"><span class="lbl">Comissões do mês</span><span class="num">${money0(comTot)}</span><div class="meta"><span>${pctTxt(tot.faturamento ? comTot / tot.faturamento : 0)} do faturamento</span></div></div>
-        <div class="kpi"><span class="lbl">Fica para a barbearia</span><span class="num">${money0(tot.faturamento - comTot)}</span><div class="meta"><span>faturamento − comissões</span></div></div></div>
+        <div class="kpi"><span class="lbl">Fica para a barbearia</span><span class="num">${money0(tot.faturamento - comTot)}</span><div class="meta"><span>depois das comissões</span></div></div></div>
       ${tabela(cab("Barbeiro","Faturamento","Comissão","% do fat.","Meta de comissão","% da meta","Fica p/ barbearia"),
         ls.map(l => { const mc = +l.b.ganho_desejado || 0; return `<tr class="click" data-act="abrir" data-v="${l.b.id}"><td>${quem(l.b)}</td><td>${money0(l.t.faturamento)}</td><td><b>${money0(l.c.v)}</b>${l.c.real ? "" : '<span class="xs muted"> est.</span>'}</td><td>${l.t.faturamento ? pctTxt(l.c.v / l.t.faturamento) : "—"}</td><td>${mc ? money0(mc) : "—"}</td><td class="${mc ? (l.c.v >= mc ? "good" : "warn") : "muted"}">${mc ? pctTxt(l.c.v / mc) : "—"}</td><td>${money0(l.t.faturamento - l.c.v)}</td></tr>`; }).join(""),
         `<tr class="avg"><td>Total</td><td>${money0(tot.faturamento)}</td><td>${money0(comTot)}</td><td>${tot.faturamento ? pctTxt(comTot / tot.faturamento) : ""}</td><td></td><td></td><td>${money0(tot.faturamento - comTot)}</td></tr>`)}
@@ -1241,7 +1244,7 @@ async function pgRelatorios(){
       <p class="xs muted" style="margin:8px 0 0">"Bateu" conta os meses fechados com meta. "Seq." é quantos meses seguidos ele bateu até o último mês fechado. * mês em andamento.</p>` : `<p class="empty">Sem metas ou lançamentos nos últimos meses.</p>`;
   }
 
-  return `${nav}${chips}<section class="card"><div class="card-head"><div><h2>${titulo}</h2><span class="sm muted">${sub}</span></div></div><div style="margin-top:10px">${corpo}</div>${_relCSV ? baixar : ""}</section>`;
+  return `${nav}${chips}<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">${titulo}</h2>${_relCSV ? baixar : ""}</div><span class="sm muted">${sub}</span><div style="margin-top:10px">${corpo}</div></section>`;
 }
 function graficoRel(labels, dados){
   const el = document.getElementById("chRel"); if (!el || !window.Chart) return;
@@ -1421,8 +1424,7 @@ async function pgLancar(){
     ${pend.length ? `<h3 style="margin:16px 0 0">Falta atualizar (${pend.length})</h3><div class="mlist">${pend.map(card).join("")}</div>` : `<div class="hero-dica good" style="margin-top:12px">Todos os barbeiros atualizados até ${dataBR(d)}.</div>`}
   </section>
   ${feitos.length ? `<section class="card"><h2>Atualizados até ${dataBR(d)} (${feitos.length})</h2><div class="list" style="margin-top:6px">${feitos.map(card).join("")}</div></section>` : ""}
-  <section class="card"><div class="card-head"><div><h2>Atualizações de ${esc(mesNome(mi).toLowerCase())}</h2><span class="sm muted">Toque na data para corrigir. Excluir uma atualização passa o valor dela para a próxima.</span></div>
-    <select data-ch="lancBarb" aria-label="Barbeiro">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></div>
+  <section class="card"><h2>Atualizações de ${esc(mesNome(mi).toLowerCase())}</h2><span class="sm muted">Toque na data para corrigir. Excluir uma atualização passa o valor dela para a próxima.</span><label class="f" style="margin-top:10px">Barbeiro<select data-ch="lancBarb">${eq.map(b => `<option value="${b.id}" ${b.id === bid ? "selected" : ""}>${esc(b.nome)}</option>`).join("")}</select></label>
     <div class="list" style="margin-top:8px">
     ${linhasHist.map(({ l, t, ac }) => `<div class="li" style="align-items:center"><button class="link" data-act="irData" data-v="${l.data}">${esc(pD(l.data).toLocaleDateString("pt-BR",{weekday:"short", day:"2-digit", month:"2-digit"}))}</button><span class="sm" style="flex:1;min-width:0;text-align:right"><b>${money0(ac)}</b> <span class="muted">no mês · +${money0(t.faturamento)} (${money0(t.servicos)} serv. · ${money0(t.extras)} extras · ${money0(t.produtos)} prod. · ${money0(t.assinatura_rs)} assin.${t.comissao_rs ? ` · ${money0(t.comissao_rs)} comissão` : ""})</span></span><button class="icon-btn" style="flex:0 0 38px;color:var(--bad)" data-act="excluirDia" data-v="${l.data}" aria-label="Excluir atualização de ${dataBR(l.data)}" title="Excluir">🗑</button></div>`).join("") || `<div class="li"><span class="sm muted">Nenhuma atualização neste mês.</span></div>`}
   </div>${hist.length ? `<div class="actions"><button class="btn danger" data-act="apagarMes">Apagar o mês de ${esc(primeiroNome(nomeDe(bid)))}</button></div>` : ""}</section>
