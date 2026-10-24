@@ -145,6 +145,15 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .gauge .gv b{display:block;font:900 italic 46px var(--display);line-height:1;letter-spacing:-.02em}
 .gauge .gv span{font:700 11px var(--body);letter-spacing:.14em;text-transform:uppercase}
 .hero-txt h2{font-size:22px}
+/* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
+.minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.mini{text-align:center;min-width:0}
+.mini .gauge{max-width:170px}
+.mini .gauge .gv b{font-size:30px}
+.mini .gauge .gv span{font-size:10px}
+.mini .mt{display:block;font-weight:600;font-size:14px;margin-top:6px}
+.mini .ms{display:block;font-size:12px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+@media (min-width:1180px){.hero.com-minis{grid-template-columns:240px minmax(0,1fr) 360px}.hero.com-minis .minis{margin-top:0;padding-top:0;border-top:0;padding-left:18px;border-left:1px solid var(--line)}}
 .cmp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .cmp .pill{font-size:12.5px}
 
@@ -618,6 +627,18 @@ function nota(t, meta){
   if (!pesos) return { nota:null, comps };
   return { nota:Math.round(Math.min(10, soma / pesos * 9) * 10) / 10, comps };
 }
+// nota de um item (serviços extras ou produtos): contra a meta dele, se o admin definiu; senão contra a média da equipe
+function notaItem(real, meta, media){
+  const ref = meta > 0 ? meta : media > 0 ? media : 0;
+  if (!ref) return { nota:null, r:null, ref:"" };
+  const r = real / ref;
+  return { nota:Math.round(Math.min(10, r * 9) * 10) / 10, r, ref:meta > 0 ? "da meta" : "da média da equipe" };
+}
+function miniGauge(titulo, real, it){
+  const nv = nivelDe(it.nota);
+  return `<div class="mini"><div class="gauge">${gaugeSVG(it.nota)}<div class="gv"><b class="${nv || "muted"}">${it.nota == null ? "—" : dec1(it.nota)}</b><span class="${nv || "muted"}">${nv ? NIVEL_NOME[nv] : "sem base"}</span></div></div>
+    <span class="mt">${titulo}</span><span class="ms">${money0(real)}${it.r == null ? "" : ` · ${pctTxt(it.r)} ${it.ref}`}</span></div>`;
+}
 function avaliar(lista, metasB, p){
   const t = totais(lista);
   const temHoje = lista.some(l => l.data === today());
@@ -854,20 +875,23 @@ async function pgPainel(){
     ${[["Nota", av.nota == null ? "—" : dec1(av.nota), media.nota == null ? "—" : dec1(media.nota), "9,0"],
        ["Faturamento", money0(av.t.faturamento), money0(media.faturamento), av.meta.faturamento ? money0(av.meta.faturamento) : "—"],
        ["Serviços", money0(av.t.servicos), money0(media.servicos), "—"],
-       ["Serviços extras", money0(av.t.extras), money0(media.extras), "—"],
-       ["Produtos", money0(av.t.produtos), money0(media.produtos), "—"],
+       ["Serviços extras", money0(av.t.extras), money0(media.extras), av.meta.extras ? money0(av.meta.extras) : "—"],
+       ["Produtos", money0(av.t.produtos), money0(media.produtos), av.meta.produtos ? money0(av.meta.produtos) : "—"],
        ["Assinaturas", money0(av.t.assinatura_rs), money0(media.assinatura_rs), "—"]].map(r => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join("")}
     </tbody></table></div><span class="xs muted">A meta mostrada é proporcional aos dias de trabalho do período${av.corte && av.corte < p.fim ? ` até ${dataBR(av.corte)}` : ""}.</span></section>` : "";
 
+  const itEx = notaItem(av.t.extras, av.meta.extras, media && media.extras), itPr = notaItem(av.t.produtos, av.meta.produtos, media && media.produtos);
+  const minis = av.t.dias || itEx.nota != null || itPr.nota != null ? `<div class="minis">${miniGauge("Serviços extras", av.t.extras, itEx)}${miniGauge("Produtos", av.t.produtos, itPr)}</div>` : "";
+
   return `${periodoBar()}
-  <section class="card"><div class="hero">
+  <section class="card"><div class="hero${minis ? " com-minis" : ""}">
     <div class="gauge">${gaugeSVG(av.nota)}<div class="gv"><b class="${nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</b><span class="${nivel || "muted"}">${nivel ? NIVEL_NOME[nivel] : "sem nota"}</span></div></div>
     <div class="hero-txt"><span class="lbl">Nota de performance · ${TIPO_NOME[p.tipo].toLowerCase()}</span><h2>${esc(p.label)}</h2>
       <div class="hero-dica ${nivel || ""}">${esc(frasePrincipal(av, S.me.papel === "admin" ? "" : nm))}</div>
       <div class="cmp">${media && media.nota != null && av.nota != null ? pill(av.nota >= media.nota ? "good" : "bad", `${av.nota >= media.nota ? "Acima" : "Abaixo"} da média da equipe (${dec1(media.nota)})`) : ""}
         ${av.t.dias ? pill("n", `Atualizado até ${dataBR(doPer.map(l => l.data).sort().at(-1))}`) : pill("bad", "Nenhum lançamento no período")}
         ${pill("n", `${av.t.comissao_rs ? `Comissão ${money0(av.t.comissao_rs)}` : `Comissão estimada ${money0(ganho)}`}`)}</div>
-    </div></div></section>
+    </div>${minis}</div></section>
   ${ritmo}
   ${S.me.papel === "admin" ? cardEditarMeta(perfil) : ""}
   <div class="kpis">
@@ -1102,20 +1126,21 @@ async function pgMetas(){
   const linha = b => { const x = S.metas.find(y => y.barbeiro_id === b.id && String(y.mes).slice(0,10) === m) || {};
     const f = (k, rot, modo) => `<label class="f">${rot}<input inputmode="${modo || "decimal"}" data-k="${k}" value="${modo ? (x[k] || "") : numIn(x[k])}" placeholder="0"></label>`;
     return `<div class="mrow" data-b="${b.id}"><div><b>${esc(b.nome)}</b> <span class="xs muted">comissão ${numIn(b.comissao_servicos) || 0}% serviços · ${numIn(b.comissao_produtos) || 0}% produtos</span></div>
-      <div class="mgrid">${f("faturamento", "Meta de faturamento R$")}
+      <div class="mgrid">${f("faturamento", "Meta de faturamento R$")}${f("extras", "Meta de serviços extras R$")}${f("produtos", "Meta de produtos R$")}
         <label class="f">Meta de comissão R$<input inputmode="decimal" data-g="1" value="${numIn(+b.ganho_desejado || 0)}" placeholder="0"><span class="xs muted" style="font-weight:500">vale para todos os meses</span></label></div></div>`; };
   const u = uteisNoMes(m);
   return `<div class="pnav"><button class="icon-btn" data-act="metaMes" data-v="-1" aria-label="Mês anterior">‹</button><b>${esc(mesNome(m))}</b><button class="icon-btn" data-act="metaMes" data-v="1" aria-label="Próximo mês">›</button></div>
   <section class="card"><div class="row"><h2>Metas de ${esc(pD(m).toLocaleDateString("pt-BR",{month:"long"}))}</h2><span class="sm muted">${u} dias de trabalho no mês</span></div>
-    <span class="sm muted">A meta é de faturamento no mês: serviços + extras + produtos + assinaturas. A performance de cada barbeiro é medida em cima dela.</span>
+    <span class="sm muted">A meta é de faturamento no mês: serviços + extras + produtos + assinaturas. A performance de cada barbeiro é medida em cima dela. As metas de serviços extras e de produtos movem os dois velocímetros menores; deixe em branco para comparar com a média da equipe.</span>
     ${lista.length ? `<div class="mlist">${lista.map(linha).join("")}</div>
     <div class="actions"><button class="btn" data-act="salvarMetas">Salvar metas</button><button class="btn sec" data-act="copiarMetas">Copiar do mês anterior</button><button class="btn ghost" data-act="igualarMetas">Usar a 1ª linha para todos</button></div>`
     : `<p class="empty">Nenhum barbeiro ativo. Cadastre em Barbeiros.</p>`}
   </section>
   <section class="card"><h2>Como a nota é calculada</h2>
-    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota é o faturamento (serviços + extras + produtos + assinaturas) dividido pela meta até aquele dia: bater 100% dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p></section>`;
+    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota é o faturamento (serviços + extras + produtos + assinaturas) dividido pela meta até aquele dia: bater 100% dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p>
+    <p class="sm muted" style="margin:8px 0 0">Os velocímetros de <b>serviços extras</b> e de <b>produtos</b> usam a mesma régua: o valor vendido contra a meta daquele item (100% = 9,0). Sem meta do item, a comparação é com a média da equipe no mesmo período. Eles servem de estímulo e não mudam a nota geral.</p></section>`;
 }
-function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:0, assinaturas:0, produtos:0 }; }); }
+function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:0, produtos:parseNum(g("produtos")) }; }); }
 
 /* ======================= PÁGINA: LANÇAR DIA ======================= */
 // admin: meta do mês do barbeiro editada no próprio painel; ao salvar, nota, ponteiro e números recalculam
@@ -1125,11 +1150,11 @@ function cardEditarMeta(b){
   if (S.editMeta !== b.id) {
     const it = (r, v) => `<div><span class="lbl">${r}</span><div class="num" style="font-size:18px">${v}</div></div>`;
     return `<section class="card"><div class="card-head"><h2>${tit}</h2><button class="btn sm" data-act="editarMeta" data-v="${b.id}">Editar meta</button></div>
-      <div class="calc-out" style="margin-top:10px">${it("Meta de faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Meta de comissão", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}</div></section>`;
+      <div class="calc-out" style="margin-top:10px">${it("Meta de faturamento", +x.faturamento ? money0(x.faturamento) : "—")}${it("Meta de comissão", +b.ganho_desejado ? money0(b.ganho_desejado) : "—")}${it("Meta de extras", +x.extras ? money0(x.extras) : "média da equipe")}${it("Meta de produtos", +x.produtos ? money0(x.produtos) : "média da equipe")}</div></section>`;
   }
   const f = (k, r, v, modo) => `<label class="f">${r}<input data-em="${k}" inputmode="${modo || "decimal"}" value="${modo ? (v || "") : numIn(v)}" placeholder="0"></label>`;
   return `<section class="card" style="border-color:var(--accent)"><h2>${tit} · ${esc(primeiroNome(b.nome))}</h2><span class="sm muted">Ao salvar, a nota, o ponteiro e os números deste painel já recalculam.</span>
-    <div class="fgrid" style="margin-top:12px">${f("faturamento", "Meta de faturamento R$", x.faturamento)}${f("ganho", "Meta de comissão R$", b.ganho_desejado)}</div>
+    <div class="fgrid" style="margin-top:12px">${f("faturamento", "Meta de faturamento R$", x.faturamento)}${f("ganho", "Meta de comissão R$", b.ganho_desejado)}${f("extras", "Meta de serviços extras R$", x.extras)}${f("produtos", "Meta de produtos R$", x.produtos)}</div>
     <div class="actions"><button class="btn" data-act="salvarMetaBarb" data-v="${b.id}">Salvar meta</button><button class="btn ghost" data-act="editarMeta" data-v="">Cancelar</button></div></section>`;
 }
 
@@ -1591,7 +1616,7 @@ const ACOES = {
   editarMeta: v => { S.editMeta = v || null; render(); },
   async salvarMetaBarb(v){
     const g = k => document.querySelector(`[data-em="${k}"]`).value, m = mesIni(S.per.ref > today() ? today() : S.per.ref);
-    await DB.salvarMetas([{ barbeiro_id:v, mes:m, faturamento:parseNum(g("faturamento")), extras:0, assinaturas:0, produtos:0 }]);
+    await DB.salvarMetas([{ barbeiro_id:v, mes:m, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:0, produtos:parseNum(g("produtos")) }]);
     const ganho = parseNum(g("ganho")), b = S.equipe.find(e => e.id === v);
     if (b && ganho !== (+b.ganho_desejado || 0)) { await DB.salvarPerfil(v, { ganho_desejado:ganho }); b.ganho_desejado = ganho; }
     S.metas = await DB.metas(); S.editMeta = null; toast("Meta salva. Painel atualizado."); render();
@@ -1622,12 +1647,12 @@ const ACOES = {
     const ant = addM(S.metaMes, -1);
     let n = 0;
     document.querySelectorAll(".mrow").forEach(tr => { const x = S.metas.find(y => y.barbeiro_id === tr.dataset.b && String(y.mes).slice(0,10) === ant); if (!x) return; n++;
-      tr.querySelector('[data-k="faturamento"]').value = numIn(x.faturamento); });
+      ["faturamento","extras","produtos"].forEach(k => tr.querySelector(`[data-k="${k}"]`).value = +x[k] ? numIn(x[k]) : ""); });
     toast(n ? "Copiado. Confira e toque em Salvar metas." : "O mês anterior não tem metas.");
   },
   igualarMetas(){
     const trs = [...document.querySelectorAll(".mrow")]; if (!trs.length) return;
-    const base = {}; ["faturamento"].forEach(k => base[k] = trs[0].querySelector(`[data-k="${k}"]`).value);
+    const base = {}; ["faturamento","extras","produtos"].forEach(k => base[k] = trs[0].querySelector(`[data-k="${k}"]`).value);
     trs.slice(1).forEach(tr => Object.entries(base).forEach(([k,v]) => tr.querySelector(`[data-k="${k}"]`).value = v));
     toast("Valores copiados. Toque em Salvar metas.");
   },
