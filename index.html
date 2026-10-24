@@ -754,15 +754,34 @@ function gaugeSVG(n){
   let tk = "";
   for (let i = 0; i < N; i++) {
     const f = i / (N - 1), a = Math.PI * (1 - f), [x0,y0] = pt(a, r - 30), [x1,y1] = pt(a, r);
-    const on = n != null && f <= v / 10 + 1e-9;
-    tk += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${on ? cor(f) : "var(--off)"}" stroke-width="2.4" stroke-linecap="round"/>`;
+    // começa apagado; animarGauges acende os traços até a nota junto com o ponteiro
+    tk += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="var(--off)" data-f="${f.toFixed(4)}" data-c="${cor(f)}" stroke-width="2.4" stroke-linecap="round"/>`;
   }
   const marcas = [0, 5, 10].map(m => { const a = Math.PI * (1 - m/10), [x,y] = pt(a, r - 44); return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="var(--muted)" font-size="11" font-family="Outfit,sans-serif">${m}</text>`; }).join("");
-  const ang = Math.PI * (1 - v/10), [nx, ny] = pt(ang, r - 8), [bx1, by1] = pt(ang + Math.PI/2, 8), [bx2, by2] = pt(ang - Math.PI/2, 8);
-  return `<svg viewBox="0 0 260 146" aria-hidden="true">${tk}${marcas}
-    ${n == null ? "" : `<polygon points="${bx1.toFixed(1)},${by1.toFixed(1)} ${nx.toFixed(1)},${ny.toFixed(1)} ${bx2.toFixed(1)},${by2.toFixed(1)}" fill="var(--accent)"/>`}
+  // ponteiro desenhado no 0 e girado até a nota
+  const ang = Math.PI, [nx, ny] = pt(ang, r - 8), [bx1, by1] = pt(ang + Math.PI/2, 8), [bx2, by2] = pt(ang - Math.PI/2, 8);
+  return `<svg viewBox="0 0 260 146" aria-hidden="true" class="gsvg" data-v="${n == null ? "" : v}">${tk}${marcas}
+    ${n == null ? "" : `<g class="gp" style="transform-origin:${cx}px ${cy}px"><polygon points="${bx1.toFixed(1)},${by1.toFixed(1)} ${nx.toFixed(1)},${ny.toFixed(1)} ${bx2.toFixed(1)},${by2.toFixed(1)}" fill="var(--accent)"/></g>`}
     <circle cx="${cx}" cy="${cy}" r="11" fill="var(--accent)" opacity="${n == null ? .3 : 1}"/>
   </svg>`;
+}
+// velocímetros de nota: o ponteiro sai do 0 e vai até a nota, acendendo os traços e contando o número
+function animarGauges(){
+  const reduz = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.querySelectorAll("svg.gsvg:not([data-ok])").forEach(svg => {
+    svg.dataset.ok = "1";
+    if (svg.dataset.v === "") return;
+    const v = +svg.dataset.v, g = svg.querySelector(".gp"), num = svg.closest(".gauge")?.querySelector(".gv b");
+    const linhas = [...svg.querySelectorAll("line[data-f]")], dur = 600 + v * 110, t0 = performance.now();
+    const pinta = x => {
+      if (g) g.style.transform = `rotate(${(x * 18).toFixed(2)}deg)`;
+      linhas.forEach(l => { const on = +l.dataset.f <= x / 10 + 1e-9; l.setAttribute("stroke", on ? l.dataset.c : "var(--off)"); });
+      if (num) num.textContent = dec1(x);
+    };
+    if (reduz) return pinta(v);
+    const passo = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); pinta(v * e); if (p < 1 && svg.isConnected) requestAnimationFrame(passo); else pinta(v); };
+    pinta(0); requestAnimationFrame(passo);
+  });
 }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
 // linha de progresso da meta de faturamento, com quanto falta em destaque (barbeiro e barbearia)
@@ -1404,6 +1423,7 @@ async function render(){
   while (charts.length) charts.pop().destroy();
   main.innerHTML = html;
   _pos.splice(0).forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+  animarGauges();
 }
 
 async function carregarBase(){
