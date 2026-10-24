@@ -153,6 +153,27 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .mini .gauge .gv span{font-size:10px}
 .mini .mt{display:block;font-weight:600;font-size:14px;margin-top:6px}
 .mini .ms{display:block;font-size:12px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.mini .ms{display:block}.mini .ct,.m-nota{display:none}
+/* celular: painel de carro, nota no centro e os dois menores dos lados; os textos numa linha só embaixo */
+@media (max-width:719px){
+  .hero.com-minis{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);grid-template-areas:"ex nota pr" "ext notat prt" "txt txt txt";column-gap:6px;row-gap:0;align-items:end}
+  .hero.com-minis>.gauge{grid-area:nota;max-width:none}
+  .hero.com-minis .minis,.hero.com-minis .mini{display:contents}
+  .hero.com-minis .m-ex>.gauge{grid-area:ex}.hero.com-minis .m-pr>.gauge{grid-area:pr}
+  .hero.com-minis .m-ex>.mtx{grid-area:ext}.hero.com-minis .m-pr>.mtx{grid-area:prt}
+  .hero.com-minis .m-nota{display:block;grid-area:notat}
+  .hero.com-minis .mtx{align-self:start;text-align:center;padding-top:8px;min-width:0}
+  .hero.com-minis .mini .lg{display:none}.hero.com-minis .mini .ct{display:inline}
+  .hero.com-minis>.hero-txt{grid-area:txt;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .hero.com-minis>.gauge .gv b{font-size:40px}
+  .hero.com-minis>.gauge .gv span{font-size:10px}
+  .hero.com-minis .mini .gauge{max-width:none}
+  .hero.com-minis .mini .gauge .gv b{font-size:22px}
+  .hero.com-minis .mini .gauge .gv span{font-size:8px;letter-spacing:.06em}
+  .hero.com-minis .mtx .mt{display:block;font-weight:600;font-size:12.5px}
+  .hero.com-minis .mtx .ms{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+  .hero.com-minis .gsvg text{display:none}
+}
 @media (min-width:1180px){.hero.com-minis{grid-template-columns:240px minmax(0,1fr) 360px}.hero.com-minis .minis{margin-top:0;padding-top:0;border-top:0;padding-left:18px;border-left:1px solid var(--line)}}
 .cmp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .cmp .pill{font-size:12.5px}
@@ -321,7 +342,7 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
 .splash img{width:180px;height:auto}
 .loading .sym{width:72px;margin:24px auto;opacity:.9}
 .sym.anim .ndl{transform-origin:467px 445px;transform-box:view-box}
-@media (prefers-reduced-motion:no-preference){.sym.anim .ndl{animation:bp-ponteiro 1.1s ease-in-out infinite alternate}}
+.sym.anim .ndl{animation:bp-ponteiro 1.1s ease-in-out infinite alternate}
 @keyframes bp-ponteiro{from{transform:rotate(-135deg)}to{transform:rotate(6deg)}}
 .bnav-marca .ndl{transform-origin:467px 445px;transform-box:view-box}
 .bnav-marca.gira .ndl{animation:bp-giro .9s cubic-bezier(.3,.7,.3,1)}
@@ -634,10 +655,11 @@ function notaItem(real, meta, media){
   const r = real / ref;
   return { nota:Math.round(Math.min(10, r * 9) * 10) / 10, r, ref:meta > 0 ? "da meta" : "da média da equipe" };
 }
-function miniGauge(titulo, real, it){
+// .lg = texto inteiro (tela larga) · .ct = versão curta (painel de carro no celular)
+function miniGauge(cls, titulo, curto, real, it){
   const nv = nivelDe(it.nota);
-  return `<div class="mini"><div class="gauge">${gaugeSVG(it.nota)}<div class="gv"><b class="${nv || "muted"}">${it.nota == null ? "—" : dec1(it.nota)}</b><span class="${nv || "muted"}">${nv ? NIVEL_NOME[nv] : "sem base"}</span></div></div>
-    <span class="mt">${titulo}</span><span class="ms">${money0(real)}${it.r == null ? "" : ` · ${pctTxt(it.r)} ${it.ref}`}</span></div>`;
+  return `<div class="mini ${cls}"><div class="gauge">${gaugeSVG(it.nota)}<div class="gv"><b class="${nv || "muted"}">${it.nota == null ? "—" : dec1(it.nota)}</b><span class="${nv || "muted"}">${nv ? NIVEL_NOME[nv] : "sem base"}</span></div></div>
+    <div class="mtx"><span class="mt"><span class="lg">${titulo}</span><span class="ct">${curto}</span></span><span class="ms">${money0(real)}</span>${it.r == null ? "" : `<span class="ms">${pctTxt(it.r)} <span class="lg">${it.ref}</span><span class="ct">${it.ref.replace(" da equipe", "")}</span></span>`}</div></div>`;
 }
 function avaliar(lista, metasB, p){
   const t = totais(lista);
@@ -791,28 +813,28 @@ function gaugeSVG(n){
   // ponteiro desenhado no 0 e girado até a nota
   const ang = Math.PI, [nx, ny] = pt(ang, r - 8), [bx1, by1] = pt(ang + Math.PI/2, 8), [bx2, by2] = pt(ang - Math.PI/2, 8);
   return `<svg viewBox="0 0 260 146" aria-hidden="true" class="gsvg" data-v="${n == null ? "" : v}">${tk}${marcas}
-    ${n == null ? "" : `<g class="gp" style="transform-origin:${cx}px ${cy}px"><polygon points="${bx1.toFixed(1)},${by1.toFixed(1)} ${nx.toFixed(1)},${ny.toFixed(1)} ${bx2.toFixed(1)},${by2.toFixed(1)}" fill="var(--accent)"/></g>`}
+    ${n == null ? "" : `<g class="gp" transform="rotate(0 ${cx} ${cy})"><polygon points="${bx1.toFixed(1)},${by1.toFixed(1)} ${nx.toFixed(1)},${ny.toFixed(1)} ${bx2.toFixed(1)},${by2.toFixed(1)}" fill="var(--accent)"/></g>`}
     <circle cx="${cx}" cy="${cy}" r="11" fill="var(--accent)" opacity="${n == null ? .3 : 1}"/>
   </svg>`;
 }
 // velocímetros de nota: o ponteiro sai do 0 e vai até a nota, acendendo os traços e contando o número
 function animarGauges(){
-  const reduz = matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.querySelectorAll("svg.gsvg:not([data-ok])").forEach(svg => {
     svg.dataset.ok = "1";
     if (svg.dataset.v === "") return;
     const v = +svg.dataset.v, g = svg.querySelector(".gp"), num = svg.closest(".gauge")?.querySelector(".gv b");
     const linhas = [...svg.querySelectorAll("line[data-f]")], dur = 600 + v * 110, t0 = performance.now();
     const pinta = x => {
-      if (g) g.style.transform = `rotate(${(x * 18).toFixed(2)}deg)`;
+      if (g) g.setAttribute("transform", `rotate(${(x * 18).toFixed(2)} 130 132)`);
       linhas.forEach(l => { const on = +l.dataset.f <= x / 10 + 1e-9; l.setAttribute("stroke", on ? l.dataset.c : "var(--off)"); });
       if (num) num.textContent = dec1(x);
     };
-    if (reduz) return pinta(v);
     const passo = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); pinta(v * e); if (p < 1 && svg.isConnected) requestAnimationFrame(passo); else pinta(v); };
     pinta(0); requestAnimationFrame(passo);
   });
 }
+// roda de novo os velocímetros da tela (depois da abertura ou de fechar o aviso, para o barbeiro ver o ponteiro subir)
+function reanimarGauges(){ document.querySelectorAll("svg.gsvg[data-ok]").forEach(x => x.removeAttribute("data-ok")); animarGauges(); }
 function pill(nivel, txt){ return `<span class="pill ${nivel || "n"}">${txt}</span>`; }
 // linha de progresso da meta de faturamento, com quanto falta em destaque (barbeiro e barbearia)
 function cardLinha(titulo, sub, real, meta, esperado, restantes, proj, oque = "faturados"){
@@ -881,11 +903,13 @@ async function pgPainel(){
     </tbody></table></div><span class="xs muted">A meta mostrada é proporcional aos dias de trabalho do período${av.corte && av.corte < p.fim ? ` até ${dataBR(av.corte)}` : ""}.</span></section>` : "";
 
   const itEx = notaItem(av.t.extras, av.meta.extras, media && media.extras), itPr = notaItem(av.t.produtos, av.meta.produtos, media && media.produtos);
-  const minis = av.t.dias || itEx.nota != null || itPr.nota != null ? `<div class="minis">${miniGauge("Serviços extras", av.t.extras, itEx)}${miniGauge("Produtos", av.t.produtos, itPr)}</div>` : "";
+  const minis = av.t.dias || itEx.nota != null || itPr.nota != null ? `<div class="minis">${miniGauge("m-ex", "Serviços extras", "Extras", av.t.extras, itEx)}${miniGauge("m-pr", "Produtos", "Produtos", av.t.produtos, itPr)}</div>` : "";
+  const rFat = av.comps.faturamento ? av.comps.faturamento.r : null;
 
   return `${periodoBar()}
   <section class="card"><div class="hero${minis ? " com-minis" : ""}">
     <div class="gauge">${gaugeSVG(av.nota)}<div class="gv"><b class="${nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</b><span class="${nivel || "muted"}">${nivel ? NIVEL_NOME[nivel] : "sem nota"}</span></div></div>
+    ${minis ? `<div class="mtx m-nota"><span class="mt">Nota geral</span><span class="ms">${money0(av.t.faturamento)}</span>${rFat == null ? "" : `<span class="ms">${pctTxt(rFat)} da meta</span>`}</div>` : ""}
     <div class="hero-txt"><span class="lbl">Nota de performance · ${TIPO_NOME[p.tipo].toLowerCase()}</span><h2>${esc(p.label)}</h2>
       <div class="hero-dica ${nivel || ""}">${esc(frasePrincipal(av, S.me.papel === "admin" ? "" : nm))}</div>
       <div class="cmp">${media && media.nota != null && av.nota != null ? pill(av.nota >= media.nota ? "good" : "bad", `${av.nota >= media.nota ? "Acima" : "Abaixo"} da média da equipe (${dec1(media.nota)})`) : ""}
@@ -1737,7 +1761,7 @@ const ACOES = {
   async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
   avisoOk(v, ev){
     const av = $("#aviso"); if (ev && ev.target.closest(".aviso-box") && !ev.target.closest("button")) return;  // clique dentro do cartão não fecha
-    lsSet("bp-visto-" + S.me.id, av.dataset.marca || ""); av.hidden = true; if (S.tab !== "painel") ir("painel");
+    lsSet("bp-visto-" + S.me.id, av.dataset.marca || ""); av.hidden = true; if (S.tab !== "painel") ir("painel"); else reanimarGauges();
   },
   verComo(v){
     const b = S.equipe.find(e => e.id === v); if (!b) return;
@@ -1937,12 +1961,16 @@ async function iniciar(){
   S.me = me;
   // um só velocímetro: a tela de abertura fica por cima até a primeira página estar pronta
   const R = $("#authRoot"); if (!R.querySelector(".splash")) R.innerHTML = `<div class="splash">${SIMBOLO("anim")}</div>`;
+  const t0 = performance.now();
   await carregarBase();
   S.tab = S.me.papel === "admin" ? "dashboard" : "painel";
   $("#app").hidden = false;
   faixaComo();
   await render();
+  // a abertura fica pelo menos o tempo de o ponteiro ir e voltar uma vez
+  const resta = 1300 - (performance.now() - t0); if (resta > 0) await new Promise(r => setTimeout(r, resta));
   const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
+  reanimarGauges();
   avisoAtualizacao().catch(console.error);
   setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
 }
@@ -1985,6 +2013,7 @@ async function avisoAtualizacao(){
   av.dataset.marca = marca; av.hidden = false;
 }
 async function aoVoltar(){
+  if (S.me && !$("#app").hidden) reanimarGauges();  // toda volta ao app o ponteiro sobe de novo
   if (Date.now() - _saiuEm < 20000) return;  // voltou rápido: nada mudou
   const v = await versaoApp(); if (v != null && _versao != null && v !== _versao) return location.reload();
   if (!S.me || $("#app").hidden || $("#app").classList.contains("menu-open")) return;
