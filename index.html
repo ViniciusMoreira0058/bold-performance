@@ -543,7 +543,7 @@ const cloud = {
       }
     };
     const T = {};
-    for (const [t, o] of [["barbearia_config",["id"]],["equipe",["id"]],["convites",["email"]],["metas",["barbeiro_id","mes"]],["metas_barbearia",["mes"]],["lancamentos",["barbeiro_id","data"]],["receita_assinaturas",["data"]]]) { const r = await tab(t, o); if (r) T[t] = r; }
+    for (const [t, o] of [["barbearia_config",["id"]],["equipe",["id"]],["convites",["email"]],["metas",["barbeiro_id","mes"]],["metas_barbearia",["mes"]],["lancamentos",["barbeiro_id","data"]],["receita_assinaturas",["data"]],["itens_falta",["criado_em"]]]) { const r = await tab(t, o); if (r) T[t] = r; }
     return T;
   },
   // quais arquivos SQL já rodaram: confere colunas, tabelas e funções (sem mudar nada); 004 e 006 só com o 013
@@ -649,7 +649,7 @@ const demo = {
   async responderFalta(id, campos){ Object.assign(demoLoad().faltas.find(f => f.id === id), campos, { respondido_em:new Date().toISOString() }); demoSave(); },
   async apagarFalta(id){ const db = demoLoad(); db.faltas = db.faltas.filter(f => f.id !== id); demoSave(); },
   async inserirBarbeiro(row){ demoLoad().equipe.push({ ...row }); demoSave(); },
-  async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [] }; },
+  async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [], itens_falta:db.faltas || [] }; },
   async verificar(){ return Object.fromEntries(MIGR.map(m => [m[0], true])); },
   async resumoEquipe(ini, fim){
     const me = await demo.me(), db = demoLoad();
