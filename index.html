@@ -164,6 +164,10 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .falta-lista{display:flex;flex-direction:column;gap:8px;margin:0 0 14px;max-height:50vh;overflow:auto}
 .falta-lista>div{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;background:var(--surface-2);border-radius:12px;padding:10px 12px}
 .falta-lista>div>span.xs,.falta-lista>div>span.sm{flex-basis:100%}
+.chips.func-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:460px}
+.func-chips .chip{width:100%;border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
+.func-chips .chip span{font-size:11px;opacity:.75;font-weight:500}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
 .pods{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
 @media (min-width:720px){.pods{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .pod-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px}
@@ -498,7 +502,7 @@ const cloud = {
   async salvarConvite(c){ const { error } = await sb.from("convites").upsert({ ...c, email:c.email.toLowerCase() }); if (error) throw error; },
   async excluirConvite(email){ const { error } = await sb.from("convites").delete().eq("email", email); if (error) throw error; },
   async cadastrarBarbeiro(c){
-    const { error } = await sb.from("equipe").insert({ id:crypto.randomUUID(), nome:c.nome, email:c.email || null, papel:"barbeiro", aprovado:true, ativo:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos });
+    const { error } = await sb.from("equipe").insert({ id:crypto.randomUUID(), nome:c.nome, email:c.email || null, papel:c.papel || "barbeiro", aprovado:true, ativo:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos });
     if (error) throw new Error(/foreign key|tem_login/i.test(error.message) ? "Falta rodar o arquivo 007_cadastro_sem_login.sql no Supabase." : error.message);
   },
   async excluirBarbeiro(id){ const { error } = await sb.rpc("bp_excluir_barbeiro", { barbeiro:id }); if (error) throw new Error(error.code === "PGRST202" || /could not find the function/i.test(error.message) ? "Falta rodar o arquivo 012_excluir_barbeiro.sql no Supabase." : error.message); },
@@ -614,7 +618,7 @@ const demo = {
     demoSave();
   },
   async excluirConvite(email){ const db = demoLoad(); db.convites = db.convites.filter(x => x.email !== email); demoSave(); },
-  async cadastrarBarbeiro(c){ demoLoad().equipe.push({ id:"b" + Date.now(), nome:c.nome, email:c.email || null, papel:"barbeiro", ativo:true, aprovado:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos, ganho_desejado:0, ticket_medio:0 }); demoSave(); },
+  async cadastrarBarbeiro(c){ demoLoad().equipe.push({ id:"b" + Date.now(), nome:c.nome, email:c.email || null, papel:c.papel || "barbeiro", ativo:true, aprovado:true, tem_login:false, comissao_servicos:c.comissao_servicos, comissao_produtos:c.comissao_produtos, ganho_desejado:0, ticket_medio:0 }); demoSave(); },
   async excluirBarbeiro(id){ const db = demoLoad(); db.equipe = db.equipe.filter(e => e.id !== id); db.lanc = db.lanc.filter(l => l.barbeiro_id !== id); db.metas = db.metas.filter(m => m.barbeiro_id !== id); demoSave(); },
   async metas(){ const me = await demo.me(); return demoLoad().metas.filter(m => me.papel === "admin" || m.barbeiro_id === me.id).map(m => ({...m})); },
   async metasLoja(){ return (demoLoad().metasLoja || []).map(m => ({...m})); },
@@ -1679,15 +1683,21 @@ async function pgHistorico(){
 }
 
 /* ======================= PÁGINA: BARBEIROS (ADMIN) ======================= */
+const FUNCOES = [["barbeiro","Barbeiro","vê só os próprios números"],["admin","Admin","vê e mexe em tudo"]];
 async function pgBarbeiros(){
   S.convites = await DB.convites();
   const pend = S.convites.filter(c => !S.equipe.some(e => (e.email || "").toLowerCase() === c.email.toLowerCase()));
-  $("#psub").textContent = "Contas da equipe, comissões e convites";
+  $("#psub").textContent = "Barbeiros, admins, comissões e convites";
+  const fn = S.nFuncao || "barbeiro";
+  const admins = S.equipe.filter(e => e.papel === "admin");
+  const cardAdm = a => `<div class="li"><div class="who" style="min-width:0">${avatar(a)}<div style="min-width:0"><b>${esc(a.nome)}</b> ${pill("acc", "Admin")} ${a.id === S.me.id ? pill("n", "você") : ""} ${a.ativo ? "" : pill("n", "inativo")} ${a.tem_login === false ? pill("warn", "sem login") : ""}
+      <div class="xs muted">${a.tem_login === false ? (a.email ? `Liga sozinho quando criar a conta com ${esc(a.email)}` : "Sem e-mail") : esc(a.email || "")}</div></div></div>
+    ${a.id === S.me.id ? "" : `<div class="row" style="gap:8px"><button class="btn sec sm" data-act="mudarFuncao" data-v="${a.id}">Tornar barbeiro</button><button class="btn ${a.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${a.id}">${a.ativo ? "Desativar" : "Reativar"}</button></div>`}</div>`;
   const card = b => `<div class="li"><div class="who" style="min-width:0"><label class="av-edit" title="Trocar foto">${avatar(b)}<input type="file" accept="image/*" data-ch="foto" data-id="${b.id}" aria-label="Trocar foto de ${esc(b.nome)}"></label><div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")} ${b.tem_login === false ? pill("warn", "sem login") : ""}<div class="xs muted">${b.tem_login === false ? (b.email ? `Liga sozinho quando criar a conta com ${esc(b.email)}` : "Sem e-mail: preencha para ele conseguir entrar") : esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">${b.papel !== "admin" ? `<label class="f" style="width:220px">E-mail${b.tem_login === false ? "" : " de login"}<input type="email" inputmode="email" autocomplete="off" data-perfil="${b.id}" data-k="email" value="${esc(b.email || "")}" placeholder="email@exemplo.com"></label>` : ""}<label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
     <label class="f" style="width:110px">Produtos %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_produtos" value="${numIn(b.comissao_produtos)}"></label>
     <button class="btn ghost sm" data-act="salvarPerfil" data-v="${b.id}" style="align-self:flex-end">Salvar</button>
-    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.papel !== "admin" ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end;color:var(--bad)">Excluir</button>` : ""}</div></div>`;
+    <button class="btn ${b.ativo ? "danger" : "sec"} sm" data-act="ativo" data-v="${b.id}" style="align-self:flex-end">${b.ativo ? "Desativar" : "Reativar"}</button>${b.papel !== "admin" ? `<button class="btn ghost sm" data-act="excluirBarbeiro" data-v="${b.id}" style="align-self:flex-end;color:var(--bad)">Excluir</button><button class="btn ghost sm" data-act="mudarFuncao" data-v="${b.id}" style="align-self:flex-end">Tornar admin</button>` : ""}</div></div>`;
   const novos = pendentes();
   const novoCard = b => `<div class="li"><div class="who" style="min-width:0">${avatar(b)}<div style="min-width:0"><b>${esc(b.nome)}</b> ${pill("warn", "aguardando")}<div class="xs muted">${esc(b.email || "")}</div></div></div>
     <div class="row" style="gap:8px"><label class="f" style="width:110px">Serviços %<input inputmode="decimal" data-perfil="${b.id}" data-k="comissao_servicos" value="${numIn(b.comissao_servicos)}"></label>
@@ -1696,15 +1706,20 @@ async function pgBarbeiros(){
     <button class="btn danger sm" data-act="recusar" data-v="${b.id}" style="align-self:flex-end">Recusar</button></div></div>`;
   return `${novos.length ? `<section class="card" style="border-color:var(--accent)"><h2>Novos cadastros</h2><span class="sm muted">Criaram a conta pelo app. Confira a comissão e aprove para eles entrarem no ranking e começarem a lançar.</span><div class="list">${novos.map(novoCard).join("")}</div></section>` : ""}
   <section class="card"><div class="row"><div><h2>Link para os barbeiros</h2><span class="sm muted">Mande este link. O barbeiro toca em <b>Criar conta</b> e aparece aqui para você aprovar.</span></div><button class="btn" data-act="copiarLink">Copiar link do app</button></div></section>
-  <section class="card"><h2>Cadastrar barbeiro</h2><span class="sm muted">Ele entra na equipe na hora: dá para lançar, importar a planilha e definir metas antes de ele criar o login. Quando ele criar a conta com o mesmo e-mail, vê todo o histórico.</span>
+  <section class="card"><h2>Cadastrar pessoa</h2><span class="sm muted">Escolha a função. A pessoa entra com o e-mail cadastrado aqui: ao criar a conta com ele, já cai na função certa.</span>
+    <span class="lbl" style="display:block;margin-top:12px">Função</span>
+    <div class="chips func-chips" style="margin-top:6px">${FUNCOES.map(([k, n, d]) => `<button class="chip" data-act="nFuncao" data-v="${k}" aria-pressed="${fn === k}"><b>${n}</b><span>${d}</span></button>`).join("")}</div>
     <div class="fgrid" style="margin-top:12px">
-      <label class="f">Nome<input id="n-nome" placeholder="Nome do barbeiro"></label>
-      <label class="f">E-mail (opcional)<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
-      <label class="f">Comissão serviços %<input id="n-cs" inputmode="decimal" value="50"></label>
-      <label class="f">Comissão produtos %<input id="n-cp" inputmode="decimal" value="10"></label>
-    </div><div class="actions"><button class="btn" data-act="convidar">Cadastrar</button></div></section>
+      <label class="f">Nome<input id="n-nome" placeholder="${fn === "admin" ? "Nome do admin" : "Nome do barbeiro"}"></label>
+      <label class="f">E-mail${fn === "admin" ? "" : " (opcional)"}<input id="n-email" type="email" inputmode="email" autocomplete="off" placeholder="email@exemplo.com"></label>
+      ${fn === "admin" ? "" : `<label class="f">Comissão serviços %<input id="n-cs" inputmode="decimal" value="50"></label>
+      <label class="f">Comissão produtos %<input id="n-cp" inputmode="decimal" value="10"></label>`}
+    </div>
+    <p class="xs muted" style="margin:10px 0 0">${fn === "admin" ? "O admin vê tudo: dashboard, todos os barbeiros, lançamentos, metas, relatórios, feedback, itens em falta, backup e cadastros. Não entra no ranking." : "O barbeiro vê só o próprio painel, a própria meta e o histórico dele. Antes de ele criar o login você já pode lançar e definir metas."}</p>
+    <div class="actions"><button class="btn" data-act="convidar">Cadastrar ${fn === "admin" ? "admin" : "barbeiro"}</button></div></section>
   ${pend.length ? `<section class="card"><h2>Aguardando criar a conta</h2><div class="list">${pend.map(c => `<div class="li"><div><b>${esc(c.nome)}</b><div class="xs muted">${esc(c.email)} · ${c.papel === "admin" ? "admin" : "barbeiro"}</div></div><div class="row" style="gap:8px"><button class="btn danger sm" data-act="excluirConvite" data-v="${esc(c.email)}">Cancelar</button></div></div>`).join("")}</div></section>` : ""}
-  <section class="card"><h2>Equipe</h2><div class="list">${barbeiros().map(card).join("") || `<p class="empty">Nenhum barbeiro ainda.</p>`}</div></section>`;
+  <section class="card"><h2>Administradores</h2><span class="sm muted">Veem e mexem em tudo do app.</span><div class="list">${admins.map(cardAdm).join("")}</div></section>
+  <section class="card"><h2>Barbeiros</h2><span class="sm muted">Veem só os próprios números.</span><div class="list">${barbeiros().map(card).join("") || `<p class="empty">Nenhum barbeiro ainda.</p>`}</div></section>`;
 }
 
 /* ======================= PÁGINA: AJUSTES ======================= */
@@ -2148,14 +2163,23 @@ const ACOES = {
     await DB.excluirLanc(bid, d); toast("Atualização excluída."); render();
   },
   async tirarFoto(v){ await DB.salvarPerfil(v, { foto_url:null }); await recarregarEquipe(); toast("Foto removida."); render(); },
+  nFuncao: v => { const nome = $("#n-nome")?.value, email = $("#n-email")?.value; S.nFuncao = v; render().then(() => { if ($("#n-nome")) { $("#n-nome").value = nome || ""; $("#n-email").value = email || ""; } }); },
+  async mudarFuncao(v){
+    const b = S.equipe.find(e => e.id === v); if (!b || v === S.me.id) return;
+    const paraAdmin = b.papel !== "admin";
+    if (!await confirmar(paraAdmin ? `Tornar ${b.nome} admin? Passa a ver e mexer em tudo do app (todos os barbeiros, lançamentos, metas e cadastros) e sai do ranking. Os números já lançados ficam guardados.` : `Tornar ${b.nome} barbeiro? Deixa de ver os dados da equipe e passa a ver só o próprio painel.`)) return;
+    await DB.salvarPerfil(v, paraAdmin ? { papel:"admin" } : { papel:"barbeiro", aprovado:true });
+    S.equipe = await DB.equipe(); toast(paraAdmin ? `${b.nome}: agora é admin.` : `${b.nome}: agora é barbeiro.`); render();
+  },
   async convidar(){
-    const nome = $("#n-nome").value.trim(), email = $("#n-email").value.trim().toLowerCase();
-    if (!nome) return toast("Preencha o nome do barbeiro.");
+    const nome = $("#n-nome").value.trim(), email = $("#n-email").value.trim().toLowerCase(), papel = S.nFuncao || "barbeiro";
+    if (!nome) return toast(`Preencha o nome do ${papel === "admin" ? "admin" : "barbeiro"}.`);
+    if (papel === "admin" && !email) return toast("O admin precisa de um e-mail para entrar no app.");
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Esse e-mail não parece válido.");
     if (email && S.equipe.some(e => (e.email || "").toLowerCase() === email)) return toast("Já existe alguém com esse e-mail.");
-    await DB.cadastrarBarbeiro({ nome, email, comissao_servicos:parseNum($("#n-cs").value), comissao_produtos:parseNum($("#n-cp").value) });
-    S.equipe = await DB.equipe();
-    toast(`${nome} cadastrado. Já dá para lançar e importar para ele.`); render();
+    await DB.cadastrarBarbeiro({ nome, email, papel, comissao_servicos:papel === "admin" ? 0 : parseNum($("#n-cs").value), comissao_produtos:papel === "admin" ? 0 : parseNum($("#n-cp").value) });
+    S.equipe = await DB.equipe(); S.nFuncao = "barbeiro";
+    toast(papel === "admin" ? `Cadastro de ${nome} feito como admin. Para entrar, é só criar a conta com ${email}.` : `${nome} cadastrado. Já dá para lançar e importar para ele.`); render();
   },
   async excluirBarbeiro(v){
     const b = S.equipe.find(e => e.id === v) || {};
@@ -2389,6 +2413,7 @@ function telaLogin(modo, msg){
       ${msg ? `<div class="auth-msg" style="background:var(--accent-soft)">${msg}</div>` : ""}
       <div class="auth-msg"><b>Modo demonstração.</b> Dados fictícios, salvos só neste aparelho. Escolha com qual conta entrar:</div>
       <button class="btn" data-act="demoEntrar" data-v="adm">Entrar como admin (Vinicius)</button>
+      ${eq.filter(e => e.papel === "admin" && e.id !== "adm").map(a => `<button class="btn ghost" data-act="demoEntrar" data-v="${a.id}">Entrar como ${esc(a.nome)} (admin)</button>`).join("")}
       ${eq.filter(e => e.papel === "barbeiro").map(b => `<button class="btn ghost" data-act="demoEntrar" data-v="${b.id}">Entrar como ${esc(b.nome)}${b.aprovado === false ? " (cadastro novo)" : ""}</button>`).join("")}
     </div></div>`;
     return;
