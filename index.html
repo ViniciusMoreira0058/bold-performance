@@ -818,7 +818,16 @@ const pendentes = () => S.equipe.filter(e => e.papel === "barbeiro" && e.aprovad
 const ativos = () => barbeiros().filter(e => e.ativo);
 const metasDe = id => S.metas.filter(m => m.barbeiro_id === id);
 const nomeDe = id => (S.equipe.find(e => e.id === id) || {}).nome || "—";
-const primeiroNome = n => (n || "").split(" ")[0];
+const nome1 = n => (n || "").trim().split(/\s+/)[0];
+// nome curto: só o primeiro nome; se outra pessoa da equipe tem o mesmo, junta a inicial do sobrenome (Lucas A. / Lucas M.)
+const sobrenomes = n => (n || "").trim().split(/\s+/).slice(1).filter(x => !/^(d[aeo]s?|e)$/i.test(x));
+const primeiroNome = n => {
+  const f = nome1(n), sob = sobrenomes(n); if (!sob.length) return f;
+  const iguais = S.equipe.filter(e => e.nome && e.nome.trim() !== (n || "").trim() && nome1(e.nome).toLowerCase() === f.toLowerCase());
+  if (!iguais.length) return f;
+  const ini = sob[0][0].toUpperCase(), repete = iguais.some(e => (sobrenomes(e.nome)[0] || "")[0]?.toUpperCase() === ini);
+  return repete ? `${f} ${sob[0]}` : `${f} ${ini}.`;
+};
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
@@ -945,8 +954,8 @@ async function pgPainel(){
     media = mediaEquipe(ativos().map(b => avaliar(todos.filter(l => l.barbeiro_id === b.id), metasDe(b.id), p)));
   } else media = mediaEquipe((resumo || []).map(r => avaliarResumo(r, p)));
   const ganho = ganhoEstimado(av.t, perfil);
-  const nm = S.me.papel === "admin" ? perfil.nome : primeiroNome(perfil.nome);
-  $("#psub").textContent = S.me.papel === "admin" ? `Painel de ${perfil.nome}` : `Olá, ${primeiroNome(perfil.nome)}`;
+  const nm = S.me.papel === "admin" ? perfil.nome : nome1(perfil.nome);
+  $("#psub").textContent = S.me.papel === "admin" ? `Painel de ${perfil.nome}` : `Olá, ${nome1(perfil.nome)}`;
 
   const kpi = (rot, val, real, meta, med, fmt, extra) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${val}</span>
     ${meta > 0 ? barra(real/meta, med != null ? med/meta : null) + `<div class="meta"><span>${pctTxt(real/meta)} da meta</span><span>meta ${fmt(meta)}</span></div>` : `<div class="meta"><span>${extra || "sem meta no período"}</span></div>`}
@@ -2280,7 +2289,7 @@ async function iniciar(){
   try { me = await DB.me(); } catch (e) { console.error(e); return telaLogin("entrar", "Não foi possível conectar. Verifique a internet."); }
   if (!me) return telaLogin("entrar");
   if (me.semPerfil) { await sb.auth.signOut(); return telaLogin("entrar", `A conta <b>${esc(me.email)}</b> ainda não foi liberada. Peça para o admin cadastrar este e-mail em Barbeiros.`); }
-  if (me.aprovado === false) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", `Olá, ${esc(primeiroNome(me.nome))}! Seu cadastro foi enviado para o admin. Assim que ele aprovar, é só entrar de novo.`); }
+  if (me.aprovado === false) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", `Olá, ${esc(nome1(me.nome))}! Seu cadastro foi enviado para o admin. Assim que ele aprovar, é só entrar de novo.`); }
   if (!me.ativo) { if (!DEMO) await sb.auth.signOut(); else lsSet("bp-demo-user", null); return telaLogin("entrar", "Esta conta está desativada. Fale com o admin."); }
   S.me = me;
   // um só velocímetro: a tela de abertura fica por cima até a primeira página estar pronta
@@ -2312,7 +2321,7 @@ async function avisoAtualizacao(){
   const t = totais(ls), m = metasDe(S.me.id).find(x => String(x.mes).slice(0,10) === mi), meta = m ? +m.faturamento || 0 : 0;
   const ult = ls.map(l => l.data).sort().at(-1), temHoje = ult === h;
   const feitos = uteisEntre(mi, temHoje ? h : addD(h, -1)), restantes = uteisEntre(temHoje ? addD(h, 1) : h, mesFim(h)), u = feitos + restantes || 1;
-  const nome = primeiroNome(S.me.nome), mes = pD(h).toLocaleDateString("pt-BR", { month:"long" });
+  const nome = nome1(S.me.nome), mes = pD(h).toLocaleDateString("pt-BR", { month:"long" });
   // mensagem principal pela comissão (meta de comissão); sem ela, pelo faturamento
   const metaCom = +S.me.ganho_desejado || 0, real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, S.me);
   const [alvo, feito] = metaCom ? [metaCom, com] : [meta, t.faturamento];
