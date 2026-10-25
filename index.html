@@ -149,6 +149,8 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
+.metas-ind{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px;margin-top:14px}@media (min-width:960px){.metas-ind{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.metas-ind .mi{display:flex;flex-direction:column;gap:6px;min-width:0}
 .nav-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font:700 11px var(--body);display:inline-grid;place-items:center}
 .falta{padding:14px 0;border-bottom:1px solid var(--line)}.falta:last-child{border-bottom:0}
 .falta.quente{border-left:3px solid var(--bad);padding-left:12px}
@@ -1643,7 +1645,18 @@ async function pgCalc(){
   const metaFat = m ? +m.faturamento || 0 : 0;
   $("#psub").textContent = "Sua meta de comissão e onde você pode chegar no mês";
   const linha = (rot, fat, sub) => `<div class="li"><span style="flex:1;min-width:0"><b>${rot}</b><br><span class="xs muted">${sub}</span></span><span style="text-align:right;white-space:nowrap"><b class="acc">${money0(fat * taxa)}</b><br><span class="xs muted">faturando ${money0(fat)}</span></span></div>`;
-  return `<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de comissão no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
+  // as metas que o admin definiu para este barbeiro no mês
+  const tm = totais(doMes), restam = Math.max(0, u - feitos);
+  const metaIt = (rot, real, meta, semMeta) => `<div class="mi"><span class="lbl">${rot}</span><div class="num" style="font-size:22px">${meta ? money0(meta) : "—"}</div>
+    ${meta ? `${barra(real / meta, null, Math.max(.05, feitos / u))}<span class="xs ${real >= meta ? "good" : "muted"}">${money0(real)} até agora · ${real >= meta ? "meta batida!" : `faltam ${money0(meta - real)}${restam ? ` (${money0((meta - real) / restam)}/dia)` : ""}`}</span>` : `<span class="xs muted">${semMeta}</span>`}</div>`;
+  const cardMetas = `<section class="card"><h2>Suas metas de ${esc(pD(h).toLocaleDateString("pt-BR", { month:"long" }))}</h2><span class="sm muted">Definidas pelo admin só para você · ${u} dias de trabalho no mês, ${restam} pela frente</span>
+    <div class="metas-ind">
+      ${metaIt("Faturamento", tm.faturamento, metaFat, "O admin ainda não definiu.")}
+      ${metaIt("Comissão", ganhoAtual, ganho, "O admin ainda não definiu.")}
+      ${metaIt("Serviços extras", tm.extras, m ? +m.extras || 0 : 0, "Sem meta: você é comparado com a média da equipe.")}
+      ${metaIt("Produtos", tm.produtos, m ? +m.produtos || 0 : 0, "Sem meta: você é comparado com a média da equipe.")}
+    </div><p class="xs muted" style="margin:10px 0 0">Sua nota: 60% faturamento, 20% extras e 20% produtos.</p></section>`;
+  return `${cardMetas}<section class="card"><div class="card-head"><div><span class="lbl">Sua meta de comissão no mês</span><div class="num acc" style="font-size:34px;margin:4px 0">${ganho ? money0(ganho) : "—"}</div><span class="sm muted">Definida pelo admin. Comissão: ${numIn(me.comissao_servicos) || 0}% em serviços e extras e ${numIn(me.comissao_produtos) || 0}% em produtos.</span></div></div>
     ${ganho ? `${barra(ganhoAtual / ganho, null, Math.max(.05, feitos / u))}<div class="sm" style="display:flex;justify-content:space-between;margin-top:6px"><span>${money0(ganhoAtual)} ${temReal ? "de comissão até hoje" : "de comissão estimada até agora"} · ${pctTxt(ganhoAtual / ganho)}</span><span class="muted">falta ${money0(Math.max(0, ganho - ganhoAtual))}</span></div>` : ""}
     ${temReal ? `<div class="calc-out">
       <div><span class="lbl">Comissão até hoje</span><div class="num acc">${money0(comReal)}</div><span class="xs muted">lançada pelo admin</span></div>
