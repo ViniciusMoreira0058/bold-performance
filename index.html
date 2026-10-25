@@ -583,7 +583,7 @@ function gerarDemo(){
   const equipe = [{ id:"adm", nome:"Vinicius", email:"admin@demo", papel:"admin", ativo:true, comissao_servicos:0, comissao_produtos:0, ganho_desejado:0, ticket_medio:0 }]
     .concat(barbs.map((b,i) => ({ id:b.id, nome:b.nome, email:`barbeiro${i+1}@demo`, papel:"barbeiro", ativo:true, comissao_servicos:b.cs, comissao_produtos:b.cp, ganho_desejado:[6500,5500,5000,5200][i], ticket_medio:0 })));
   const metas = [], lanc = [], hoje = today(), ini = addM(mesIni(hoje), -9);
-  for (let m = ini; m <= mesIni(hoje); m = addM(m, 1)) barbs.forEach((b,i) => metas.push({ barbeiro_id:b.id, mes:m, faturamento:[19000,17500,17000,17000][i], extras:0, assinaturas:0, produtos:0 }));
+  for (let m = ini; m <= mesIni(hoje); m = addM(m, 1)) barbs.forEach((b,i) => metas.push({ barbeiro_id:b.id, mes:m, faturamento:[19000,17500,17000,17000][i], extras:[2800,2500,2300,2300][i], assinaturas:0, produtos:[900,750,650,650][i] }));
   for (let d = ini; d <= hoje; d = addD(d, 1)) {
     const dow = pD(d).getDay(); if (dow === 0) continue;
     if (d === hoje && new Date().getHours() < 20) continue;
@@ -598,10 +598,10 @@ function gerarDemo(){
     });
   }
   equipe.push({ id:"b5", nome:"Pedro Alves", email:"pedro@demo", papel:"barbeiro", ativo:false, aprovado:false, comissao_servicos:50, comissao_produtos:10, ganho_desejado:0, ticket_medio:0 });
-  return { v:3, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc, metasLoja:[{ mes:mesIni(hoje), faturamento:75000 }] };
+  return { v:4, config:{ nome:"Barbearia Demo", dias_trabalho:[1,2,3,4,5,6] }, equipe, convites:[], metas, lanc, metasLoja:[{ mes:mesIni(hoje), faturamento:75000 }] };
 }
 let demoDB = null;
-const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 3) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
+const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 4) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
 const demoSave = () => lsSet("bp-demo", demoDB);
 const demo = {
   async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; return demoLoad().equipe.find(e => e.id === id) || null; },
