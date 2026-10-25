@@ -149,6 +149,14 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
+.pods{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
+@media (min-width:720px){.pods{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.pod{background:var(--surface-2);border-radius:16px;padding:12px 14px;min-width:0}
+.pod ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.pod li{display:grid;grid-template-columns:28px auto minmax(0,1fr) auto;align-items:center;gap:8px;cursor:pointer}
+.pod li b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pod li span{font-weight:600;font-variant-numeric:tabular-nums}
+.pod li i{font-style:normal;font:700 12px var(--display);width:28px;height:22px;border-radius:999px;display:grid;place-items:center;background:var(--off);color:var(--muted)}
+.pod li i.m1{background:var(--accent);color:var(--on-accent)}.pod li i.m2{background:color-mix(in srgb,var(--accent) 45%,var(--off));color:var(--ink)}
 .dicas.fb .dica i.good{background:var(--good-soft);color:var(--good)}.dicas.fb .dica i.warn{background:var(--warn-soft);color:var(--warn)}
 .fbb{padding:14px 0;border-bottom:1px solid var(--line)}.fbb:last-child{border-bottom:0}
 .fbb-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -676,33 +684,36 @@ function metaNoIntervalo(metasDoBarbeiro, ini, fim){
   return r;
 }
 
-const PESOS = { faturamento:1 };  // a nota é o faturamento contra a meta; serviços, extras, produtos e assinaturas mostram de onde ele vem
+// a nota: 60% faturamento contra a meta, 20% serviços extras e 20% produtos
+const PESOS = { faturamento:.6, extras:.2, produtos:.2 };
+// participação média de extras e produtos no faturamento da equipe (últimos 90 dias): a régua de quem não tem meta do item
+let MIX = { extras:0, produtos:0 };
 const COMP_NOME = { faturamento:"Faturamento", extras:"Serviços extras", assinaturas:"Assinaturas", produtos:"Produtos" };
 function nivelDe(n){ return n == null ? null : n >= 8 ? "good" : n >= 6 ? "warn" : "bad"; }
 const NIVEL_NOME = { good:"Muito bom", warn:"Médio", bad:"Ruim" };
-// nota de 0 a 10: média ponderada de (real ÷ meta), 100% da meta = 9,0; acima de 111% = 10
+// nota de 0 a 10: média ponderada de cada item contra a sua régua; 100% = 9,0; acima de 111% = 10 (cada item conta no máximo 125%)
+// faturamento: contra a meta. Extras e produtos: contra a meta do item; sem ela, a parte do faturamento que veio
+// do item contra a parte média da equipe (assim quem tem menos clientes também sobe vendendo bem)
 function nota(t, meta){
   let soma = 0, pesos = 0; const comps = {};
   for (const k in PESOS) {
-    if (!(meta[k] > 0)) continue;
-    const r = t[k] / meta[k]; comps[k] = { r, real:t[k], meta:meta[k], nota:Math.min(10, r*9) };
-    soma += PESOS[k] * Math.min(r, 1.25); pesos += PESOS[k];
+    let r = null, ref = "da meta";
+    if (meta[k] > 0) r = t[k] / meta[k];
+    else if (k !== "faturamento" && MIX[k] > 0 && t.faturamento > 0) { r = t[k] / t.faturamento / MIX[k]; ref = "da média da equipe"; }
+    if (r == null) continue;
+    comps[k] = { r, ref, real:t[k], meta:meta[k], nota:Math.round(Math.min(10, r * 9) * 10) / 10 };
   }
-  if (!pesos) return { nota:null, comps };
+  if (!comps.faturamento) return { nota:null, comps };  // sem meta de faturamento não tem nota
+  for (const k in comps) { soma += PESOS[k] * Math.min(comps[k].r, 1.25); pesos += PESOS[k]; }
   return { nota:Math.round(Math.min(10, soma / pesos * 9) * 10) / 10, comps };
 }
-// nota de um item (serviços extras ou produtos): contra a meta dele, se o admin definiu; senão contra a média da equipe
-function notaItem(real, meta, media){
-  const ref = meta > 0 ? meta : media > 0 ? media : 0;
-  if (!ref) return { nota:null, r:null, ref:"" };
-  const r = real / ref;
-  return { nota:Math.round(Math.min(10, r * 9) * 10) / 10, r, ref:meta > 0 ? "da meta" : "da média da equipe" };
-}
+// velocímetro de um item (serviços extras ou produtos): a mesma conta que entra na nota
+const notaItem = c => c ? { nota:c.nota, r:c.r, ref:c.ref } : { nota:null, r:null, ref:"" };
 // .lg = texto inteiro (tela larga) · .ct = versão curta (painel de carro no celular)
 function miniGauge(cls, titulo, curto, real, it){
   const nv = nivelDe(it.nota);
   return `<div class="mini ${cls}"><div class="gauge">${gaugeSVG(it.nota)}<div class="gv"><b class="${nv || "muted"}">${it.nota == null ? "—" : dec1(it.nota)}</b><span class="${nv || "muted"}">${nv ? NIVEL_NOME[nv] : "sem base"}</span></div></div>
-    <div class="mtx"><span class="mt"><span class="lg">${titulo}</span><span class="ct">${curto}</span></span><span class="ms">${money0(real)}</span>${it.r == null ? "" : `<span class="ms">${pctTxt(it.r)} <span class="lg">${it.ref}</span><span class="ct">${it.ref.replace(" da equipe", "")}</span></span>`}</div></div>`;
+    <div class="mtx"><span class="mt"><span class="lg">${titulo}</span><span class="ct">${curto}</span></span><span class="ms">${money0(real)}</span>${it.r == null ? "" : `<span class="ms">${pctTxt(it.r)} <span class="lg">${it.ref === "da média da equipe" ? "da média (proporcional)" : it.ref}</span><span class="ct">${it.ref.replace(" da equipe", "")}</span></span>`}</div></div>`;
 }
 function avaliar(lista, metasB, p){
   const t = totais(lista);
@@ -775,16 +786,16 @@ function montarDicas(av){
   if (av.nivel == null) return [];
   const g = DICAS.geral[av.nivel].slice(0, 2).map(([b,s]) => ({ t:b, s }));
   const comps = Object.entries(av.comps).sort((a,b) => a[1].r - b[1].r);
-  const especificas = comps.slice(0, 2).map(([k,c]) => ({ t:`${COMP_NOME[k]}: ${pctTxt(c.r)} da meta`, s:DICAS[k][nivelDe(c.nota)] }));
+  const especificas = comps.slice(0, 2).map(([k,c]) => ({ t:`${COMP_NOME[k]}: ${pctTxt(c.r)} ${c.ref}`, s:DICAS[k][nivelDe(c.nota)] }));
   return especificas.concat(g).slice(0, 4);
 }
 function frasePrincipal(av, nome){
   if (av.nivel == null) return "Ainda não há meta ou dias trabalhados neste período para dar a nota.";
   const fraco = Object.entries(av.comps).sort((a,b) => a[1].r - b[1].r)[0];
   const forte = Object.entries(av.comps).sort((a,b) => b[1].r - a[1].r)[0];
-  if (av.nivel === "good") return `${nome ? nome + ", o" : "O"} período está muito bom. Destaque em ${COMP_NOME[forte[0]].toLowerCase()} (${pctTxt(forte[1].r)} da meta). Agora é manter e subir a régua.`;
-  if (av.nivel === "warn") return `Período médio. O que mais puxa a nota para baixo é ${COMP_NOME[fraco[0]].toLowerCase()} (${pctTxt(fraco[1].r)} da meta). Corrigindo isso, a nota sobe.`;
-  return `Período abaixo do esperado. ${COMP_NOME[fraco[0]]} está em ${pctTxt(fraco[1].r)} da meta. Siga as dicas abaixo a partir do próximo atendimento.`;
+  if (av.nivel === "good") return `${nome ? nome + ", o" : "O"} período está muito bom. Destaque em ${COMP_NOME[forte[0]].toLowerCase()} (${pctTxt(forte[1].r)} ${forte[1].ref}). Agora é manter e subir a régua.`;
+  if (av.nivel === "warn") return `Período médio. O que mais puxa a nota para baixo é ${COMP_NOME[fraco[0]].toLowerCase()} (${pctTxt(fraco[1].r)} ${fraco[1].ref}). Corrigindo isso, a nota sobe.`;
+  return `Período abaixo do esperado. ${COMP_NOME[fraco[0]]} está em ${pctTxt(fraco[1].r)} ${fraco[1].ref}. Siga as dicas abaixo a partir do próximo atendimento.`;
 }
 
 /* ======================= ESTADO ======================= */
@@ -948,7 +959,7 @@ async function pgPainel(){
        ["Assinaturas", money0(av.t.assinatura_rs), money0(media.assinatura_rs), "—"]].map(r => `<tr><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td class="muted">${r[3]}</td></tr>`).join("")}
     </tbody></table></div><span class="xs muted">A meta mostrada é proporcional aos dias de trabalho do período${av.corte && av.corte < p.fim ? ` até ${dataBR(av.corte)}` : ""}.</span></section>` : "";
 
-  const itEx = notaItem(av.t.extras, av.meta.extras, media && media.extras), itPr = notaItem(av.t.produtos, av.meta.produtos, media && media.produtos);
+  const itEx = notaItem(av.comps.extras), itPr = notaItem(av.comps.produtos);
   const minis = av.t.dias || itEx.nota != null || itPr.nota != null ? `<div class="minis">${miniGauge("m-ex", "Serviços extras", "Extras", av.t.extras, itEx)}${miniGauge("m-pr", "Produtos", "Produtos", av.t.produtos, itPr)}</div>` : "";
   const rFat = av.comps.faturamento ? av.comps.faturamento.r : null;
 
@@ -1112,7 +1123,15 @@ async function pgDashboard(){
   <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
     <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div class="who" style="min-width:0">${avatar(b, "av-sm")}<div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
       <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
+  ${podios(linhasM, pm)}
   ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm, mLoja, mLoja && AS.tem ? asL : []))}`;
+}
+// três pódios do mês em R$: quem mais faturou, quem mais vendeu extras e quem mais vendeu produtos
+function podios(linhas, p){
+  const cols = [["faturamento","Faturamento"],["extras","Serviços extras"],["produtos","Produtos"]].map(([k, n]) => {
+    const top = linhas.filter(l => l.av.t[k] > 0).sort((a, b) => b.av.t[k] - a.av.t[k]).slice(0, 3);
+    return `<div class="pod"><span class="lbl">${n}</span>${top.length ? `<ol>${top.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}"><i class="m${i + 1}">${i + 1}º</i>${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span>${money0(l.av.t[k])}</span></li>`).join("")}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Sem vendas ainda.</p>`}</div>`; }).join("");
+  return `<section class="card"><h2>Pódios do mês</h2><span class="sm muted">${esc(p.label)} · em R$, quem mais vendeu em cada frente</span><div class="pods">${cols}</div></section>`;
 }
 function graficoAcumulado(lista, linhas, p, mLoja, assin){
   const el = document.getElementById("chAcum"); if (!el || !window.Chart) return;
@@ -1207,8 +1226,8 @@ async function pgMetas(){
     : `<p class="empty">Nenhum barbeiro ativo. Cadastre em Barbeiros.</p>`}
   </section>
   <section class="card"><h2>Como a nota é calculada</h2>
-    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota é o faturamento (serviços + extras + produtos + assinaturas) dividido pela meta até aquele dia: bater 100% dá nota 9,0; passar de 111% dá 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p>
-    <p class="sm muted" style="margin:8px 0 0">Os velocímetros de <b>serviços extras</b> e de <b>produtos</b> usam a mesma régua: o valor vendido contra a meta daquele item (100% = 9,0). Sem meta do item, a comparação é com a média da equipe no mesmo período. Eles servem de estímulo e não mudam a nota geral.</p></section>`;
+    <p class="sm muted" style="margin:6px 0 0">A meta do mês é dividida pelos dias de trabalho, então em qualquer período (dia, semana, quinzena, trimestre…) o barbeiro é comparado com o que deveria ter feito até ali. A nota junta três coisas: <b>60%</b> é o faturamento (serviços + extras + produtos + assinaturas) contra a meta até aquele dia, <b>20%</b> são os serviços extras e <b>20%</b> os produtos. Extras e produtos contam contra a meta do item; sem ela, contra a parte que eles representam no faturamento da equipe (média dos últimos 90 dias), então quem tem menos clientes também sobe vendendo bem. Em cada item, 100% vale 9,0 e passar de 111% vale 10. Nota 8 ou mais é <b class="good">muito bom</b>, de 6 a 7,9 é <b class="warn">médio</b> e abaixo de 6 é <b class="bad">ruim</b>. Sem meta, não tem nota.</p>
+    <p class="sm muted" style="margin:8px 0 0">Os velocímetros de <b>serviços extras</b> e de <b>produtos</b> usam a mesma régua: o valor vendido contra a meta daquele item (100% = 9,0). Sem meta do item, a comparação é com a parte média que extras e produtos representam no faturamento da equipe. Eles contam na nota geral: 60% faturamento, 20% extras e 20% produtos.</p></section>`;
 }
 function lerMetas(){ return [...document.querySelectorAll(".mrow")].map(tr => { const g = k => tr.querySelector(`[data-k="${k}"]`).value; return { barbeiro_id:tr.dataset.b, mes:S.metaMes, faturamento:parseNum(g("faturamento")), extras:parseNum(g("extras")), assinaturas:0, produtos:parseNum(g("produtos")) }; }); }
 
@@ -1687,7 +1706,7 @@ async function pgFeedback(){
   // retorno por barbeiro: ponto forte e o que fazer no próximo período
   const nivelItem = (real, ref) => ref > 0 ? nivelDe(Math.min(10, real / ref * 9)) : null;
   const porB = L.slice().sort((a, b) => (b.r ?? 0) - (a.r ?? 0)).map(l => {
-    const itens = [["faturamento", l.r], ["extras", l.meta.extras ? l.t.extras / l.meta.extras : sh("extras") ? (l.t.extras / (l.t.faturamento || 1)) / sh("extras") : null], ["produtos", l.meta.produtos ? l.t.produtos / l.meta.produtos : sh("produtos") ? (l.t.produtos / (l.t.faturamento || 1)) / sh("produtos") : null]].filter(x => x[1] != null);
+    const itens = Object.entries(l.av.comps).map(([k, c]) => [k, c.r]);
     const fraco = itens.slice().sort((a, b) => a[1] - b[1])[0], forte = itens.slice().sort((a, b) => b[1] - a[1])[0];
     const nvF = fraco ? nivelDe(Math.min(10, fraco[1] * 9)) || "warn" : "warn";
     const forteTxt = forte && forte[1] >= .95 ? (forte[0] === "faturamento" ? `bateu ${pctTxt(forte[1])} da meta` : forte[0] === "extras" ? `extras acima da equipe (${money0(l.t.extras)})` : `produtos acima da equipe (${money0(l.t.produtos)})`) : l.v != null && l.v > 0 ? `cresceu ${Math.round(l.v * 100)}% sobre ${FB_ANT[tipo]}` : "manteve os atendimentos";
@@ -1855,6 +1874,11 @@ async function carregarBase(){
   CFG = { nome:cfg.nome, dias_trabalho:(cfg.dias_trabalho || [1,2,3,4,5,6]).map(Number) };
   S.equipe = eq; S.metas = mt;
   S.metasLoja = (S.comoAdmin || S.me).papel === "admin" ? await DB.metasLoja() : [];
+  try {
+    const rs = await DB.resumoEquipe(addD(today(), -90), today()), sm = k => rs.reduce((a, r) => a + (+r[k] || 0), 0);
+    const fat = sm("servicos") + sm("extras") + sm("produtos") + sm("assinatura_rs");
+    MIX = fat ? { extras:sm("extras") / fat, produtos:sm("produtos") / fat } : { extras:0, produtos:0 };
+  } catch (e) { console.warn(e); }
   const eu = eq.find(e => e.id === S.me.id); if (eu) S.me = S.comoAdmin ? { ...eu, papel:"barbeiro" } : eu;
 }
 

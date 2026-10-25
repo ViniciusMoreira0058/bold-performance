@@ -6,9 +6,9 @@ Performance dos barbeiros. O admin define as meta de faturamento do mês de cada
 
 | Tela | Quem vê | O que faz |
 |---|---|---|
-| **Dashboard** | Admin (primeira tela) | Nota geral da equipe no mês e na semana, projeção do mês, comparação com o mesmo período do mês anterior, faturamento contra a meta, serviços, extras e produtos com a parte de cada um no faturamento, quanto falta por dia, resultado de hoje (ou ontem) e quem falta atualizar, destaques, faturamento acumulado x meta e nota de cada barbeiro |
+| **Dashboard** | Admin (primeira tela) | Nota geral da equipe no mês e na semana, projeção do mês, comparação com o mesmo período do mês anterior, faturamento contra a meta, serviços, extras e produtos com a parte de cada um no faturamento, quanto falta por dia, resultado de hoje (ou ontem) e quem falta atualizar, destaques, faturamento acumulado x meta, nota de cada barbeiro e pódios do mês (faturamento, extras e produtos em R$) |
 | **Equipe** | Admin | Nota da equipe, totais contra a meta, ranking dos barbeiros com nota, faturamento, % da meta, serviços, extras e produtos; linha de média; gráfico de faturamento por barbeiro; alerta de quem está com nota ruim |
-| **Painel do barbeiro** | Barbeiro (o próprio) e admin (qualquer um) | Admin edita a meta do mês e a meta de comissão ali mesmo (a nota e os números recalculam na hora); Nota do período com velocímetro e, ao lado, velocímetros de serviços extras e de produtos (contra a meta do item ou a média da equipe, sem mudar a nota geral), frase de diagnóstico, indicadores contra a meta e contra a média da equipe, dicas, gráfico de evolução, meta do mês com projeção e quanto falta por dia, tabela "você x equipe" |
+| **Painel do barbeiro** | Barbeiro (o próprio) e admin (qualquer um) | Admin edita a meta do mês e a meta de comissão ali mesmo (a nota e os números recalculam na hora); Nota do período com velocímetro e, ao lado, velocímetros de serviços extras e de produtos (contra a meta do item ou a parte média da equipe; contam 20% cada na nota), frase de diagnóstico, indicadores contra a meta e contra a média da equipe, dicas, gráfico de evolução, meta do mês com projeção e quanto falta por dia, tabela "você x equipe" |
 | **Filtros de período** | Todos | Diário, semanal, quinzenal, mensal, trimestral, semestral e anual, com navegação para períodos anteriores |
 | **Meta da barbearia** | Admin | Meta de faturamento geral do mês; quanto cada barbeiro precisa faturar (pelo histórico dos 90 dias ou igual para todos) e botão para gravar isso nas metas; comparação de cada barbeiro com a média (muito acima / na média / abaixo) e quem está melhor e pior em cada indicador |
 | **Meta do barbeiro** | Admin | Metas por barbeiro e por mês, e a meta de comissão de cada barbeiro; copiar do mês anterior; repetir a 1ª linha para todos |
@@ -24,7 +24,7 @@ Performance dos barbeiros. O admin define as meta de faturamento do mês de cada
 ## Como a nota é calculada
 
 - A meta do mês é dividida pelos **dias de trabalho** do mês. Em qualquer período o barbeiro é comparado com o que deveria ter feito **até o último dia lançado** (se hoje ainda não tem lançamento, conta até ontem).
-- A nota é o **faturamento** (serviços + extras + produtos + assinaturas) ÷ meta de faturamento até aquele dia. Sem meta, não tem nota.
+- A nota é **60% faturamento** (serviços + extras + produtos + assinaturas ÷ meta de faturamento até aquele dia), **20% serviços extras** e **20% produtos** (contra a meta do item; sem ela, a parte do faturamento que veio do item contra a parte média da equipe nos últimos 90 dias). Sem meta de faturamento, não tem nota.
 - 100% da meta = nota 9,0. Acima de 111% = 10.
 - **Muito bom**: 8 ou mais · **Médio**: 6 a 7,9 · **Ruim**: abaixo de 6. As dicas mudam conforme a faixa e atacam primeiro os dois indicadores mais fracos.
 - **Faturamento** = serviços + extras + produtos + assinaturas. **Ganho estimado** = (serviços + extras) × comissão de serviços + produtos × comissão de produtos.
