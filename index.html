@@ -150,13 +150,20 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
 .pods{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
-@media (min-width:720px){.pods{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:720px){.pods{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pod-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px}
+.pods.rk li{grid-template-rows:auto auto;row-gap:4px}
+.rk-sub{grid-column:3 / -1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.rk-sub .sbar5{height:6px}
+.sbar5.acc b{background:var(--accent)}
+.rk-nota{display:block;margin-top:10px}
+.pods.rk ol{gap:12px}
 .pod{background:var(--surface-2);border-radius:16px;padding:12px 14px;min-width:0}
 .pod ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .pod li{display:grid;grid-template-columns:28px auto minmax(0,1fr) auto;align-items:center;gap:8px;cursor:pointer}
-.pod li b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pod li span{font-weight:600;font-variant-numeric:tabular-nums}
-.pod li i{font-style:normal;font:700 12px var(--display);width:28px;height:22px;border-radius:999px;display:grid;place-items:center;background:var(--off);color:var(--muted)}
-.pod li i.m1{background:var(--accent);color:var(--on-accent)}.pod li i.m2{background:color-mix(in srgb,var(--accent) 45%,var(--off));color:var(--ink)}
+.pod li>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pod li>span{font-weight:600;font-variant-numeric:tabular-nums}
+.pod li>i{font-style:normal;font:700 12px var(--display);width:28px;height:22px;border-radius:999px;display:grid;place-items:center;background:var(--off);color:var(--muted)}
+.pod li>i.m1{background:var(--accent);color:var(--on-accent)}.pod li>i.m2{background:color-mix(in srgb,var(--accent) 45%,var(--off));color:var(--ink)}
 .dicas.fb .dica i.good{background:var(--good-soft);color:var(--good)}.dicas.fb .dica i.warn{background:var(--warn-soft);color:var(--warn)}
 .fbb{padding:14px 0;border-bottom:1px solid var(--line)}.fbb:last-child{border-bottom:0}
 .fbb-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -1123,15 +1130,30 @@ async function pgDashboard(){
   <section class="card"><div class="card-head"><div><h2>Nota de cada barbeiro</h2><span class="sm muted">${esc(pm.label)} · toque para abrir o painel</span></div><button class="arrow" data-tab="equipe" aria-label="Ver ranking completo">↗</button></div>
     <div class="score">${linhasM.sort((a, b) => (b.av.nota ?? -1) - (a.av.nota ?? -1)).map(({ b, av }) => `<div class="score-i" data-nv="${av.nivel || ""}" data-act="abrir" data-v="${b.id}"><div class="who" style="min-width:0">${avatar(b, "av-sm")}<div style="min-width:0"><b>${esc(b.nome)}</b> <span class="xs muted">${money0(av.t.faturamento)} · ${av.meta.faturamento ? pctTxt(av.t.faturamento / av.meta.faturamento) + " do esperado" : "sem meta"}</span></div></div><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span>
       <div class="sbar5 ${av.nivel || "n"}">${Array.from({ length:5 }, (_, k) => `<i><b style="width:${av.nota == null ? 0 : Math.round(Math.max(0, Math.min(1, av.nota / 2 - k)) * 100)}%"></b></i>`).join("")}</div></div>`).join("")}</div></section>
+  ${rankings(linhasM, pm)}
   ${podios(linhasM, pm)}
   ${posRender(() => graficoAcumulado(doMes.filter(dosAtivos), linhasM, pm, mLoja, mLoja && AS.tem ? asL : []))}`;
 }
 // três pódios do mês em R$: quem mais faturou, quem mais vendeu extras e quem mais vendeu produtos
+// dois rankings do mês: meta individual (% da meta do mês de cada um) e faturamento geral (R$)
+function rankings(linhas, p){
+  const pos = i => `<i class="m${Math.min(i + 1, 4)}">${i + 1}º</i>`;
+  const comMeta = linhas.filter(l => l.av.metaCheia.faturamento > 0).map(l => ({ ...l, r:l.av.t.faturamento / l.av.metaCheia.faturamento })).sort((a, b) => b.r - a.r);
+  const bat = comMeta.filter(l => l.r >= 1).length;
+  const rk1 = comMeta.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}">${pos(i)}${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span class="${l.r >= 1 ? "good" : ""}">${l.r >= 1 ? "✓ " : ""}${pctTxt(l.r)}</span><div class="rk-sub">${barra(Math.min(1, l.r), null, null)}<span class="xs muted">${money0(l.av.t.faturamento)} de ${money0(l.av.metaCheia.faturamento)}${l.r >= 1 ? " · meta batida" : ` · faltam ${money0(l.av.metaCheia.faturamento - l.av.t.faturamento)}`}</span></div></li>`).join("");
+  const porFat = linhas.filter(l => l.av.t.faturamento > 0).sort((a, b) => b.av.t.faturamento - a.av.t.faturamento), maxF = porFat.length ? porFat[0].av.t.faturamento : 1;
+  const rk2 = porFat.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}">${pos(i)}${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span>${money0(l.av.t.faturamento)}</span><div class="rk-sub">${barra(l.av.t.faturamento / maxF, null, null).replace(/sbar5 \w+/, "sbar5 acc")}<span class="xs muted">${i ? `${money0(maxF - l.av.t.faturamento)} atrás do 1º` : "maior faturamento do mês"}</span></div></li>`).join("");
+  return `<section class="card"><h2>Rankings do mês</h2><span class="sm muted">${esc(p.label)} · toque no nome para abrir o painel</span>
+    <div class="pods rk">
+      <div class="pod"><div class="pod-h"><span class="lbl">Meta individual</span>${comMeta.length ? pill(bat ? "good" : "n", `${bat} de ${comMeta.length} bateram`) : ""}</div>${rk1 ? `<ol>${rk1}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Defina as metas em Meta do barbeiro.</p>`}<span class="xs muted rk-nota">% da meta de faturamento do mês inteiro de cada um</span></div>
+      <div class="pod"><div class="pod-h"><span class="lbl">Faturamento geral</span></div>${rk2 ? `<ol>${rk2}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Sem faturamento ainda.</p>`}<span class="xs muted rk-nota">serviços + extras + produtos + assinaturas, em R$</span></div>
+    </div></section>`;
+}
 function podios(linhas, p){
-  const cols = [["faturamento","Faturamento"],["extras","Serviços extras"],["produtos","Produtos"]].map(([k, n]) => {
+  const cols = [["extras","Serviços extras"],["produtos","Produtos"]].map(([k, n]) => {
     const top = linhas.filter(l => l.av.t[k] > 0).sort((a, b) => b.av.t[k] - a.av.t[k]).slice(0, 3);
     return `<div class="pod"><span class="lbl">${n}</span>${top.length ? `<ol>${top.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}"><i class="m${i + 1}">${i + 1}º</i>${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span>${money0(l.av.t[k])}</span></li>`).join("")}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Sem vendas ainda.</p>`}</div>`; }).join("");
-  return `<section class="card"><h2>Pódios do mês</h2><span class="sm muted">${esc(p.label)} · em R$, quem mais vendeu em cada frente</span><div class="pods">${cols}</div></section>`;
+  return `<section class="card"><h2>Pódios do mês</h2><span class="sm muted">${esc(p.label)} · em R$, quem mais vendeu extras e produtos</span><div class="pods duo">${cols}</div></section>`;
 }
 function graficoAcumulado(lista, linhas, p, mLoja, assin){
   const el = document.getElementById("chAcum"); if (!el || !window.Chart) return;
