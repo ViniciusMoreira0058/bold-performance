@@ -1136,16 +1136,16 @@ async function pgDashboard(){
 }
 // três pódios do mês em R$: quem mais faturou, quem mais vendeu extras e quem mais vendeu produtos
 // dois rankings do mês: meta individual (% da meta do mês de cada um) e faturamento geral (R$)
-function rankings(linhas, p){
+function rankings(linhas, p, doQue = "do mês"){
   const pos = i => `<i class="m${Math.min(i + 1, 4)}">${i + 1}º</i>`;
   const comMeta = linhas.filter(l => l.av.metaCheia.faturamento > 0).map(l => ({ ...l, r:l.av.t.faturamento / l.av.metaCheia.faturamento })).sort((a, b) => b.r - a.r);
   const bat = comMeta.filter(l => l.r >= 1).length;
   const rk1 = comMeta.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}">${pos(i)}${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span class="${l.r >= 1 ? "good" : ""}">${l.r >= 1 ? "✓ " : ""}${pctTxt(l.r)}</span><div class="rk-sub">${barra(Math.min(1, l.r), null, null)}<span class="xs muted">${money0(l.av.t.faturamento)} de ${money0(l.av.metaCheia.faturamento)}${l.r >= 1 ? " · meta batida" : ` · faltam ${money0(l.av.metaCheia.faturamento - l.av.t.faturamento)}`}</span></div></li>`).join("");
   const porFat = linhas.filter(l => l.av.t.faturamento > 0).sort((a, b) => b.av.t.faturamento - a.av.t.faturamento), maxF = porFat.length ? porFat[0].av.t.faturamento : 1;
-  const rk2 = porFat.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}">${pos(i)}${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span>${money0(l.av.t.faturamento)}</span><div class="rk-sub">${barra(l.av.t.faturamento / maxF, null, null).replace(/sbar5 \w+/, "sbar5 acc")}<span class="xs muted">${i ? `${money0(maxF - l.av.t.faturamento)} atrás do 1º` : "maior faturamento do mês"}</span></div></li>`).join("");
-  return `<section class="card"><h2>Rankings do mês</h2><span class="sm muted">${esc(p.label)} · toque no nome para abrir o painel</span>
+  const rk2 = porFat.map((l, i) => `<li data-act="abrir" data-v="${l.b.id}">${pos(i)}${avatar(l.b, "av-sm")}<b>${esc(primeiroNome(l.b.nome))}</b><span>${money0(l.av.t.faturamento)}</span><div class="rk-sub">${barra(l.av.t.faturamento / maxF, null, null).replace(/sbar5 \w+/, "sbar5 acc")}<span class="xs muted">${i ? `${money0(maxF - l.av.t.faturamento)} atrás do 1º` : `maior faturamento ${doQue}`}</span></div></li>`).join("");
+  return `<section class="card"><h2>Rankings ${doQue}</h2><span class="sm muted">${esc(p.label)} · toque no nome para abrir o painel</span>
     <div class="pods rk">
-      <div class="pod"><div class="pod-h"><span class="lbl">Meta individual</span>${comMeta.length ? pill(bat ? "good" : "n", `${bat} de ${comMeta.length} bateram`) : ""}</div>${rk1 ? `<ol>${rk1}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Defina as metas em Meta do barbeiro.</p>`}<span class="xs muted rk-nota">% da meta de faturamento do mês inteiro de cada um</span></div>
+      <div class="pod"><div class="pod-h"><span class="lbl">Meta individual</span>${comMeta.length ? pill(bat ? "good" : "n", `${bat} de ${comMeta.length} bateram`) : ""}</div>${rk1 ? `<ol>${rk1}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Defina as metas em Meta do barbeiro.</p>`}<span class="xs muted rk-nota">% da meta de faturamento ${doQue === "do mês" ? "do mês inteiro" : doQue} de cada um</span></div>
       <div class="pod"><div class="pod-h"><span class="lbl">Faturamento geral</span></div>${rk2 ? `<ol>${rk2}</ol>` : `<p class="xs muted" style="margin:8px 0 0">Sem faturamento ainda.</p>`}<span class="xs muted rk-nota">serviços + extras + produtos + assinaturas, em R$</span></div>
     </div></section>`;
 }
@@ -1207,6 +1207,7 @@ async function pgEquipe(){
     ${k("Faturamento da equipe", tot.faturamento, metaTot.faturamento, money0)}
     ${[["Serviços", tot.servicos], ["Serviços extras", tot.extras], ["Produtos", tot.produtos], ["Assinaturas", tot.assinatura_rs]].map(([r, v]) => `<div class="kpi"><span class="lbl">${r}</span><span class="num">${money0(v)}</span><div class="meta"><span>${pctTxt(parte(v, tot.faturamento))} do faturamento</span></div></div>`).join("")}
   </div>
+  ${rankings(linhas, p, { dia:"do dia", semana:"da semana", quinzena:"da quinzena", mes:"do mês", trimestre:"do trimestre", semestre:"do semestre", ano:"do ano" }[p.tipo])}
   <section class="card"><div class="row"><h2>Ranking do período</h2><span class="xs muted">Toque em um barbeiro para abrir o painel</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Barbeiro</th><th>Nota</th><th>Faturamento</th><th>% meta</th><th>Serviços</th><th>Extras</th><th>Produtos</th><th>Assinaturas</th></tr></thead><tbody>
     ${linhas.map(({ b, av }) => `<tr class="click" data-act="abrir" data-v="${b.id}"><td><span class="who">${avatar(b, "av-sm")}<b>${esc(b.nome)}</b></span></td><td><span class="nb ${av.nivel || "muted"}">${av.nota == null ? "—" : dec1(av.nota)}</span></td>
