@@ -102,6 +102,7 @@ main{display:flex;flex-direction:column;gap:16px;padding:6px max(16px,env(safe-a
 .btn.ghost{background:none;color:var(--ink);border:1px solid var(--line);font-style:normal;font-weight:600;text-transform:none}
 .btn.danger{background:none;color:var(--bad);border:1px solid var(--line);font-style:normal;font-weight:600;text-transform:none}
 .btn.sm{min-height:34px;padding:6px 12px;font-size:13px}
+a.btn{text-decoration:none}
 .btn:disabled{opacity:.5;cursor:default}
 .icon-btn{width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);border-radius:10px;cursor:pointer;color:var(--ink)}
 .side .icon-btn{background:#0e0e0e;border-color:#262626;color:#f5f5f5}
@@ -486,6 +487,41 @@ const cloud = {
   async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
+  async inserirBarbeiro(row){ const { error } = await sb.from("equipe").insert(row); if (error) throw error; },
+  // backup: todas as tabelas do Bold; a que ainda não existe no banco fica de fora
+  async backupTudo(){
+    const tab = async (t, ords) => {
+      let out = [], from = 0;
+      for (;;) {
+        let q = sb.from(t).select("*"); ords.forEach(o => q = q.order(o));
+        const { data, error } = await q.range(from, from + 999); if (error) { console.warn(t, error); return null; }
+        out = out.concat(data); if (data.length < 1000) return out; from += 1000;
+      }
+    };
+    const T = {};
+    for (const [t, o] of [["barbearia_config",["id"]],["equipe",["id"]],["convites",["email"]],["metas",["barbeiro_id","mes"]],["metas_barbearia",["mes"]],["lancamentos",["barbeiro_id","data"]],["receita_assinaturas",["data"]]]) { const r = await tab(t, o); if (r) T[t] = r; }
+    return T;
+  },
+  // quais arquivos SQL já rodaram: confere colunas, tabelas e funções (sem mudar nada); 004 e 006 só com o 013
+  async verificar(){
+    const col = async (t, c) => { const { error } = await sb.from(t).select(c).limit(1); return !error; };
+    const fn = async (nome, args) => { const { error } = await sb.rpc(nome, args); return !error || !(error.code === "PGRST202" || /could not find the function/i.test(error.message)); };
+    const zero = "00000000-0000-0000-0000-000000000000";
+    const r = {
+      "002": await col("equipe", "aprovado"),
+      "003": await col("equipe", "foto_url") && !(await sb.storage.from("bp-avatares").list("", { limit:1 })).error,
+      "005": await col("metas_barbearia", "mes"),
+      "007": await col("equipe", "tem_login"),
+      "008": await col("receita_assinaturas", "data"),
+      "009": await col("lancamentos", "assinatura_rs"),
+      "010": await col("lancamentos", "comissao_rs"),
+      "011": await fn("bp_trocar_email", { barbeiro:zero, novo:"" }),      // e-mail vazio: a função recusa sem mexer em nada
+      "012": await fn("bp_excluir_barbeiro", { barbeiro:zero }),           // id que não existe: a função não faz nada
+    };
+    const { data, error } = await sb.rpc("bp_verificar");
+    r["013"] = !error; r["004"] = error ? null : !!data["004"]; r["006"] = error ? null : !!data["006"];
+    return r;
+  },
 };
 
 /* ======================= DADOS: DEMONSTRAÇÃO ======================= */
@@ -549,6 +585,9 @@ const demo = {
   async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); const x = { ...l, atualizado_em:new Date().toISOString() }; if (i >= 0) db.lanc[i] = x; else db.lanc.push(x); demoSave(); },
   async salvarLancs(lista){ for (const l of lista) await demo.salvarLanc(l); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
+  async inserirBarbeiro(row){ demoLoad().equipe.push({ ...row }); demoSave(); },
+  async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [] }; },
+  async verificar(){ return Object.fromEntries(MIGR.map(m => [m[0], true])); },
   async resumoEquipe(ini, fim){
     const me = await demo.me(), db = demoLoad();
     return db.equipe.filter(e => e.papel === "barbeiro" && e.ativo).map(e => {
@@ -760,7 +799,7 @@ const primeiroNome = n => (n || "").split(" ")[0];
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["barbeiros","Barbeiros","☰"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
@@ -776,6 +815,7 @@ const ICONE = {
   calc:'<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8.5 7.5h7M8.5 12h1M12 12h1M15 12h.5M8.5 16h1M12 16h1M15 16h.5"/></svg>',
   loja:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-5h6v5"/><path d="M4 20h16"/></svg>',
   relatorios:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 16v-3M12 16V9M16 16v-5"/></svg>',
+  backup:'<svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/></svg>',
   historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
 };
 // "ver como barbeiro": o admin navega pela visão do barbeiro (sem Ajustes, que mexeria na conta do admin)
@@ -1587,8 +1627,88 @@ async function pgAjustes(){
   ${DEMO ? `<section class="card"><h2>Demonstração</h2><p class="sm muted" style="margin:4px 0 0">Os dados desta demonstração são fictícios e ficam só neste aparelho.</p><div class="actions"><button class="btn danger" data-act="resetDemo">Recomeçar com dados novos</button></div></section>` : ""}`;
 }
 
+/* ======================= PÁGINA: BACKUP (ADMIN) ======================= */
+const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"]];
+const SB_REF = (SUPABASE_URL.match(/^https:\/\/([^.]+)\.supabase\.co/) || [])[1] || "";
+const SB_PAINEL = SB_REF ? `https://supabase.com/dashboard/project/${SB_REF}` : "";
+const GH_SQL = "https://github.com/ViniciusMoreira0058/bold-performance/blob/main/supabase/";
+const _sql = {};  // texto dos arquivos SQL, já baixado para o botão Copiar funcionar no toque
+function carregarSQLs(){
+  if (_sql._ok) return; _sql._ok = 1;
+  MIGR.forEach(([, f]) => fetch("supabase/" + f, { cache:"no-store" }).then(r => r.ok ? r.text() : null).then(t => { if (t && !/^\s*</.test(t)) _sql[f] = t; }).catch(() => {}));
+}
+function baixarArquivo(nome, txt, tipo){
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type:tipo })); a.download = nome; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+// restaurar não apaga nada: o que está no arquivo volta, o que foi lançado depois fica
+async function restaurarBackup(T){
+  const atual = new Set((await DB.equipe()).map(e => e.id)), emails = new Set(S.equipe.map(e => (e.email || "").toLowerCase()).filter(Boolean));
+  let novos = 0;
+  const c = (T.barbearia_config || [])[0];
+  if (c && c.nome) { CFG.nome = c.nome; if (Array.isArray(c.dias_trabalho) && c.dias_trabalho.length) CFG.dias_trabalho = c.dias_trabalho; await DB.salvarConfig(CFG); }
+  for (const b of (T.equipe || []).filter(x => x.papel === "barbeiro" && x.id)) {
+    const campos = { comissao_servicos:+b.comissao_servicos || 0, comissao_produtos:+b.comissao_produtos || 0, ganho_desejado:+b.ganho_desejado || 0 };
+    if (atual.has(b.id)) { await DB.salvarPerfil(b.id, campos); continue; }
+    const em = (b.email || "").toLowerCase();  // quem tinha sido excluído volta como cadastro sem login
+    await DB.inserirBarbeiro({ id:b.id, nome:b.nome, email:em && !emails.has(em) ? em : null, papel:"barbeiro", aprovado:true, ativo:b.ativo !== false, tem_login:false, ...campos });
+    atual.add(b.id); novos++;
+  }
+  const metas = (T.metas || []).filter(m => atual.has(m.barbeiro_id)).map(m => ({ barbeiro_id:m.barbeiro_id, mes:String(m.mes).slice(0,10), faturamento:+m.faturamento || 0, extras:+m.extras || 0, assinaturas:+m.assinaturas || 0, produtos:+m.produtos || 0 }));
+  for (let i = 0; i < metas.length; i += 200) await DB.salvarMetas(metas.slice(i, i + 200));
+  for (const m of T.metas_barbearia || []) await DB.salvarMetaLoja(String(m.mes).slice(0,10), +m.faturamento || 0);
+  const lanc = (T.lancamentos || []).filter(l => atual.has(l.barbeiro_id)).map(l => ({ ...linhaLanc(l), barbeiro_id:l.barbeiro_id }));
+  if (lanc.length) await DB.salvarLancs(lanc);
+  const ass = (T.receita_assinaturas || []).map(a => ({ data:String(a.data).slice(0,10), valor:+a.valor || 0, cobrancas:+a.cobrancas || 0 }));
+  if (ass.length) try { await DB.salvarAssinDia(ass); } catch (e) { console.warn(e); }
+  return `${lanc.length} lançamentos e ${metas.length} metas${novos ? `; ${novos} barbeiro${novos > 1 ? "s" : ""} de volta` : ""}`;
+}
+async function pgBackup(){
+  $("#psub").textContent = "Cópia dos dados, conferência do banco e cuidados com o app";
+  carregarSQLs();
+  if (!S.verif && !S.verifIndo) { S.verifIndo = true; DB.verificar().then(r => { S.verif = r; }).catch(e => { console.error(e); S.verif = {}; }).finally(() => { S.verifIndo = false; if (S.tab === "backup") render(); }); }
+  const ult = lsGet("bp-ultimo-backup", ""), dias = ult ? Math.floor((Date.now() - Date.parse(ult)) / 864e5) : null;
+  const quando = ult ? new Date(ult).toLocaleDateString("pt-BR") : "";
+  const stBk = ult ? pill(dias <= 31 ? "good" : "warn", `Último backup neste aparelho: ${quando}${dias ? ` · há ${dias} dia${dias > 1 ? "s" : ""}` : " · hoje"}`) : pill("warn", "Nenhum backup baixado neste aparelho");
+
+  const V = S.verif, ok = V ? MIGR.filter(m => V[m[0]] === true).length : 0;
+  const stSql = !V ? pill("n", "Conferindo…") : ok === MIGR.length ? pill("good", "Tudo rodado") : pill("warn", `${ok} de ${MIGR.length} rodados`);
+  const linhaSql = ([n, f, d]) => { const v = V ? V[n] : undefined;
+    const st = v === true ? pill("good", "Rodado") : v === false ? pill("bad", "Falta rodar") : v === null ? pill("n", "Rode o 013 para conferir") : pill("n", "…");
+    return `<div class="li"><div style="min-width:0;flex:1 1 200px"><b>${n}</b> <span class="sm">${d}</span><div class="xs muted">${f}</div></div><div class="row" style="gap:8px">${st}${v === true ? "" : `<button class="btn sm${v === false ? "" : " sec"}" data-act="copiarSQL" data-v="${f}">Copiar SQL</button>`}</div></div>`; };
+
+  const lancs = await DB.lancamentos(addD(today(), -400), today()), ultL = {};
+  lancs.forEach(l => { if (!ultL[l.barbeiro_id] || l.data > ultL[l.barbeiro_id]) ultL[l.barbeiro_id] = l.data; });
+  const bs = barbeiros().slice().sort((a, b) => (b.ativo - a.ativo) || a.nome.localeCompare(b.nome));
+  const linhaB = b => { const u = ultL[b.id], d = u ? Math.round((pD(today()) - pD(u)) / 864e5) : null;
+    return `<div class="li"><div class="who" style="min-width:0;flex:1 1 200px">${avatar(b)}<div style="min-width:0"><b>${esc(b.nome)}</b> ${b.ativo ? "" : pill("n", "inativo")}
+      <div class="xs ${d != null && d > 30 && b.ativo ? "warn" : "muted"}">${u ? `Última atualização ${dataBR(u)}${d > 0 ? ` · há ${d} dia${d > 1 ? "s" : ""}` : " · hoje"}` : "Sem atualizações no último ano"}</div></div></div>
+      <div class="row" style="gap:8px"><button class="btn sm sec" data-act="ativo" data-v="${b.id}">${b.ativo ? "Desativar" : "Reativar"}</button><button class="btn sm danger" data-act="excluirBarbeiro" data-v="${b.id}">Excluir</button></div></div>`; };
+
+  const cuidado = (t, txt, acao) => `<div class="li"><div style="min-width:0;flex:1 1 240px"><b>${t}</b><div class="sm muted">${txt}</div></div>${acao ? `<div class="row" style="gap:8px">${acao}</div>` : ""}</div>`;
+  return `<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Backup completo</h2><button class="btn sm" data-act="baixarBackup">Baixar backup</button></div>
+    <span class="sm muted">Um arquivo com tudo do Bold: equipe, metas, lançamentos, meta da barbearia, assinaturas e ajustes. Baixe todo fim de mês e guarde no Google Drive ou no e-mail.</span>
+    <div class="cmp" style="margin-top:10px">${stBk}</div>
+    <div class="actions"><button class="btn sec" data-act="baixarLancCSV">Planilha de lançamentos</button><label class="btn ghost" style="cursor:pointer">Restaurar um backup<input type="file" accept=".json,application/json" data-ch="restaurar" hidden></label></div>
+    <span class="xs muted">Restaurar não apaga nada: as datas que estão no arquivo voltam para o valor do backup e o que foi lançado depois continua.</span></section>
+  <section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Arquivos SQL do banco</h2><button class="btn sm" data-act="verificarBanco">Conferir agora</button></div>
+    <span class="sm muted">Cada arquivo liga uma parte do app. Para os que faltam: toque em Copiar SQL, abra o SQL Editor, cole e clique em Run. Rode na ordem dos números.</span>
+    <div class="cmp" style="margin-top:10px">${stSql}</div>
+    ${SB_PAINEL ? `<div class="actions"><a class="btn sec" href="${SB_PAINEL}/sql/new" target="_blank" rel="noopener">Abrir SQL Editor do Supabase</a></div>` : ""}
+    <div style="margin-top:6px">${MIGR.map(linhaSql).join("")}</div></section>
+  <section class="card"><h2>Barbeiros que saíram</h2><span class="sm muted">Desativar tira do ranking e bloqueia a entrada no app; os dados ficam guardados. Excluir apaga a conta e todos os dados dele (baixe um backup antes).</span>
+    <div style="margin-top:6px">${bs.length ? bs.map(linhaB).join("") : `<p class="empty">Nenhum barbeiro cadastrado.</p>`}</div></section>
+  <section class="card"><h2>Cuidados</h2><span class="sm muted">O que depende do painel do Supabase fica aqui como lembrete, com o atalho certo.</span>
+    <div style="margin-top:6px">
+      ${cuidado("Senha do admin", "Quem entra como admin lança e apaga dados de todos. Use uma senha só sua e não compartilhe a conta.", DEMO ? "" : `<button class="btn sm sec" data-act="novaSenha">Trocar minha senha</button>`)}
+      ${cuidado("Site URL do Supabase", "Não mude a Site URL, ela é do HABITAH. Para o Bold, só adicione o endereço do app em Redirect URLs.", SB_PAINEL ? `<a class="btn sm sec" href="${SB_PAINEL}/auth/url-configuration" target="_blank" rel="noopener">Abrir URLs</a>` : "")}
+      ${cuidado("Banco sem pausar", `O plano gratuito pausa o banco depois de 7 dias sem uso. Abrir o Bold (ou o HABITAH) já conta como uso. ${pill("good", "Banco respondeu agora")}`, SB_PAINEL ? `<a class="btn sm sec" href="${SB_PAINEL}" target="_blank" rel="noopener">Abrir Supabase</a>` : "")}
+      ${cuidado("Fotos leves", "O app já reduz cada foto para 320×320 antes de enviar. Troque só quando precisar.", "")}
+    </div></section>`;
+}
+
 /* ======================= RENDER ======================= */
-const PAGINAS = { relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -1660,6 +1780,25 @@ const ACOES = {
   },
   relMes: v => { const n = addM(S.relMes, +v); if (n <= mesIni(today())) { S.relMes = n; render(); } },
   rel: v => { S.rel = v; render(); },
+  async baixarBackup(){
+    toast("Juntando os dados…");
+    const T = await DB.backupTudo(), d = new Date();
+    baixarArquivo(`bold-backup-${today()}.json`, JSON.stringify({ app:"bold-performance", versao:1, criado_em:d.toISOString(), tabelas:T }, null, 1), "application/json");
+    lsSet("bp-ultimo-backup", d.toISOString()); toast(`Backup baixado: ${(T.lancamentos || []).length} lançamentos.`); render();
+  },
+  async baixarLancCSV(){
+    const ls = await DB.lancamentos("2000-01-01", today()), nome = id => nomeDe(id);
+    const linhas = [["Data","Barbeiro","Serviços","Serviços extras","Produtos","Assinaturas","Faturamento do dia","Comissão do dia"]]
+      .concat(ls.slice().sort((a, b) => a.data < b.data ? -1 : a.data > b.data ? 1 : nome(a.barbeiro_id).localeCompare(nome(b.barbeiro_id)))
+      .map(l => [pD(l.data).toLocaleDateString("pt-BR"), nome(l.barbeiro_id), +l.servicos || 0, +l.extras || 0, +l.produtos || 0, +l.assinatura_rs || 0, (+l.servicos || 0) + (+l.extras || 0) + (+l.produtos || 0) + (+l.assinatura_rs || 0), +l.comissao_rs || 0]));
+    baixarCSV(`bold-lancamentos-${today()}.csv`, linhas); toast("Planilha baixada.");
+  },
+  verificarBanco(){ S.verif = null; render(); },
+  copiarSQL(f){
+    const t = _sql[f];
+    if (!t || !navigator.clipboard) { window.open(GH_SQL + f, "_blank", "noopener"); return toast("Abri o arquivo no GitHub: copie o texto de lá e cole no SQL Editor."); }
+    navigator.clipboard.writeText(t).then(() => toast(`${f} copiado. Cole no SQL Editor do Supabase e clique em Run.`), () => { window.open(GH_SQL + f, "_blank", "noopener"); toast("Não consegui copiar; abri o arquivo no GitHub."); });
+  },
   baixarRel(){ if (!_relCSV) return; baixarCSV(`bold-${S.rel}-${S.relMes.slice(0, 7)}.csv`, _relCSV); toast("Planilha baixada."); },
   lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
   async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
@@ -1803,6 +1942,19 @@ document.addEventListener("change", async e => {
     const f = e.target.files && e.target.files[0], id = e.target.dataset.id; if (!f) return;
     try { toast("Enviando foto…"); const url = await DB.salvarFoto(id, await fotoQuadrada(f)); await DB.salvarPerfil(id, { foto_url:url }); await recarregarEquipe(); toast("Foto atualizada."); render(); }
     catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
+    return;
+  }
+  if (e.target.dataset.ch === "restaurar") {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try {
+      let b; try { b = JSON.parse(await f.text()); } catch (x) { b = null; }
+      e.target.value = "";
+      if (!b || b.app !== "bold-performance" || !b.tabelas) throw new Error("Esse arquivo não é um backup do Bold.");
+      const T = b.tabelas;
+      if (!await confirmar(`Restaurar o backup de ${new Date(b.criado_em).toLocaleDateString("pt-BR")}? São ${(T.lancamentos || []).length} lançamentos e ${(T.metas || []).length} metas. As datas que estão no arquivo voltam para o valor do backup; o que foi lançado depois continua. Barbeiro que foi excluído volta como cadastro sem login.`)) return;
+      toast("Restaurando…"); const r = await restaurarBackup(T);
+      S.equipe = await DB.equipe(); S.metas = await DB.metas(); S.metasLoja = await DB.metasLoja(); toast(`Backup restaurado: ${r}.`); render();
+    } catch (err) { console.error(err); toast("Erro: " + (err.message || err)); }
     return;
   }
   if (e.target.dataset.ch === "importar") {
