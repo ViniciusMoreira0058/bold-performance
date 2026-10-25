@@ -149,6 +149,10 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
+.dicas.fb .dica i.good{background:var(--good-soft);color:var(--good)}.dicas.fb .dica i.warn{background:var(--warn-soft);color:var(--warn)}
+.fbb{padding:14px 0;border-bottom:1px solid var(--line)}.fbb:last-child{border-bottom:0}
+.fbb-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.fb-aviso{border-color:var(--accent)}
 .mini .gauge{max-width:170px}
 .mini .gauge .gv b{font-size:30px}
 .mini .gauge .gv span{font-size:10px}
@@ -787,6 +791,7 @@ function frasePrincipal(av, nome){
 const S = {
   me:null, equipe:[], metas:[], convites:[],
   tab:null, per:{ tipo:"mes", ref:today() }, ver:null,      // ver = barbeiro aberto pelo admin
+  fbTipo:"semana", fbRef:null,
   lancData:today(), lancBarb:null, lancEdit:null, relMes:mesIni(today()), rel:"fechamento", metaMes:mesIni(today()), lojaMes:mesIni(today()), metasLoja:[],
 };
 const charts = [];
@@ -799,7 +804,7 @@ const primeiroNome = n => (n || "").split(" ")[0];
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["feedback","Feedback","✎"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
@@ -816,6 +821,7 @@ const ICONE = {
   loja:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-5h6v5"/><path d="M4 20h16"/></svg>',
   relatorios:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 16v-3M12 16V9M16 16v-5"/></svg>',
   backup:'<svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/></svg>',
+  feedback:'<svg class="ic" viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5"/></svg>',
   historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
 };
 // "ver como barbeiro": o admin navega pela visão do barbeiro (sem Ajustes, que mexeria na conta do admin)
@@ -1069,7 +1075,7 @@ async function pgDashboard(){
   const tile = (rot, val, sub, nv) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num ${nv || ""}">${val}</span><div class="meta"><span>${sub}</span></div></div>`;
   const kpiMeta = (rot, real, metaAte, metaCheia, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${metaCheia > 0 ? barra(real / metaCheia, metaAte / metaCheia, metaAte / metaCheia) + `<div class="meta"><span>${pctTxt(real / metaCheia)} da meta do mês</span><span>meta ${fmt(metaCheia)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
 
-  return `${avisoNovos}
+  return `${avisoNovos}${avisoFeedback()}
   <section class="card"><div class="hero">
     <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
     <div class="hero-txt"><div class="card-head"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><button class="arrow" data-tab="equipe" aria-label="Ver ranking da equipe">↗</button></div><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
@@ -1627,6 +1633,120 @@ async function pgAjustes(){
   ${DEMO ? `<section class="card"><h2>Demonstração</h2><p class="sm muted" style="margin:4px 0 0">Os dados desta demonstração são fictícios e ficam só neste aparelho.</p><div class="actions"><button class="btn danger" data-act="resetDemo">Recomeçar com dados novos</button></div></section>` : ""}`;
 }
 
+/* ======================= PÁGINA: FEEDBACK DA EQUIPE (ADMIN) ======================= */
+// Cada período fecha no último dia (semana = segunda a domingo, então o da semana chega no domingo)
+// e vira um feedback: resumo, destaques, pontos de atenção, um retorno por barbeiro e o plano para o próximo período.
+const FB_TIPOS = [["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["trimestre","Trimestral"],["semestre","Semestral"],["ano","Anual"]];
+const FB_DO = { semana:"da semana", quinzena:"da quinzena", mes:"do mês", trimestre:"do trimestre", semestre:"do semestre", ano:"do ano" };
+const FB_PROX = { semana:"a próxima semana", quinzena:"a próxima quinzena", mes:"o próximo mês", trimestre:"o próximo trimestre", semestre:"o próximo semestre", ano:"o próximo ano" };
+const FB_ANT = { semana:"a semana anterior", quinzena:"a quinzena anterior", mes:"o mês anterior", trimestre:"o trimestre anterior", semestre:"o semestre anterior", ano:"o ano anterior" };
+// último período fechado (o que termina hoje já conta: o da semana sai no domingo)
+const fbFechado = tipo => { const p = periodo(tipo, today()); return p.fim <= today() ? p : periodo(tipo, moverPeriodo(p, -1)); };
+let _fbTxt = "", _fbCSV = null;
+const variacao = (a, b) => b > 0 ? a / b - 1 : null;
+const varPill = (r, txt) => r == null ? "" : pill(Math.round(r * 100) === 0 ? "n" : r > 0 ? "good" : "bad", `${Math.round(r * 100) === 0 ? "=" : r > 0 ? "▲" : "▼"} ${Math.abs(Math.round(r * 100))}% ${txt}`);
+async function pgFeedback(){
+  if (S.me.papel !== "admin") { S.tab = "painel"; return pgPainel(); }
+  const tipo = S.fbTipo, p = S.fbRef ? periodo(tipo, S.fbRef) : fbFechado(tipo), pa = periodo(tipo, moverPeriodo(p, -1));
+  const ultimo = fbFechado(tipo), emAndamento = p.fim > today();
+  $("#psub").textContent = "Como a equipe rendeu no período e o que fazer depois";
+  lsSet("bp-fb-visto-" + tipo, ultimo.fim);
+  const lanc = await DB.lancamentos(pa.ini, p.fim);
+  const de = (id, q) => lanc.filter(l => l.barbeiro_id === id && l.data >= q.ini && l.data <= q.fim);
+  const bs = barbeiros().filter(b => b.ativo || lanc.some(l => l.barbeiro_id === b.id && l.data >= p.ini));
+  const L = bs.map(b => { const av = avaliar(de(b.id, p), metasDe(b.id), p), ant = avaliar(de(b.id, pa), metasDe(b.id), pa);
+    return { b, av, ant, t:av.t, meta:av.meta, r:av.meta.faturamento ? av.t.faturamento / av.meta.faturamento : null, v:variacao(av.t.faturamento, ant.t.faturamento) }; }).filter(l => l.t.dias || l.meta.faturamento);
+  const T = totais(L.flatMap(l => de(l.b.id, p))), TA = totais(L.flatMap(l => de(l.b.id, pa)));
+  const metaT = L.reduce((s, l) => s + l.meta.faturamento, 0), rT = metaT ? T.faturamento / metaT : null, vT = variacao(T.faturamento, TA.faturamento);
+  const ns = L.filter(l => l.av.nota != null), notaT = ns.length ? Math.round(ns.reduce((s, l) => s + l.av.nota, 0) / ns.length * 10) / 10 : null, nvT = nivelDe(notaT);
+  const bateram = L.filter(l => l.r != null && l.r >= 1), comMeta = L.filter(l => l.r != null);
+  const sh = k => T.faturamento ? T[k] / T.faturamento : 0;
+  const nm = l => primeiroNome(l.b.nome);
+  const nav = `<div class="pbar"><div class="seg" role="group" aria-label="Tipo de feedback">${FB_TIPOS.map(([k, n]) => `<button data-act="fbTipo" data-v="${k}" aria-pressed="${tipo === k}">${n}</button>`).join("")}</div>
+    <div class="pnav"><button class="icon-btn" data-act="fbPer" data-v="-1" aria-label="Período anterior">‹</button><b>${esc(p.label)}</b><button class="icon-btn" data-act="fbPer" data-v="1" aria-label="Próximo período" ${p.ini > today() || moverPeriodo(p, 1) > today() ? "disabled" : ""}>›</button>${p.fim === ultimo.fim ? "" : `<button class="btn ghost sm" data-act="fbPer" data-v="0">Último</button>`}</div></div>`;
+  if ((!L.length || !T.dias) && !S.fbRef && p.fim < today()) { S.fbRef = today(); return pgFeedback(); }  // sem dados no último fechado (ex.: ano anterior): mostra o atual
+  if (!L.length || !T.dias) return `${nav}<section class="card"><p class="empty">Sem lançamentos ${FB_DO[tipo]} ${esc(p.label)}.</p></section>`;
+
+  // resumo em uma frase
+  const abre = nvT === "good" ? `${tipo === "semana" ? "Semana" : "Período"} forte` : nvT === "warn" ? `${tipo === "semana" ? "Semana" : "Período"} no meio do caminho` : nvT === "bad" ? `${tipo === "semana" ? "Semana" : "Período"} abaixo do esperado` : "Resumo";
+  const resumo = `${abre}: a equipe faturou ${money0(T.faturamento)}${rT != null ? ` (${pctTxt(rT)} da meta ${FB_DO[tipo]})` : ""}${vT != null ? `, ${Math.abs(Math.round(vT * 100))}% ${vT >= 0 ? "a mais" : "a menos"} que ${FB_ANT[tipo]}` : ""}. ${comMeta.length ? `${bateram.length} de ${comMeta.length} barbeiro${comMeta.length > 1 ? "s" : ""} ${bateram.length === 1 ? "bateu" : "bateram"} a meta.` : ""}`;
+
+  // destaques e atenção
+  const top = (f, filtro = () => true) => L.filter(filtro).slice().sort((a, b) => f(b) - f(a))[0];
+  const dest = [], aten = [];
+  const m1 = top(l => l.r ?? -1, l => l.r != null); if (m1) dest.push([`${nm(m1)} liderou`, `${pctTxt(m1.r)} da meta, ${money0(m1.t.faturamento)} faturados.`]);
+  const c1 = top(l => l.v ?? -9, l => l.v != null && l.v > .03); if (c1 && c1 !== m1) dest.push([`${nm(c1)} foi quem mais cresceu`, `${Math.round(c1.v * 100)}% acima d${FB_ANT[tipo].slice(0, 1) === "o" ? "o" : "a"} ${FB_ANT[tipo].split(" ").slice(1).join(" ")}.`]);
+  const e1 = top(l => l.t.extras, l => l.t.extras > 0); if (e1) dest.push([`${nm(e1)} vendeu mais extras`, `${money0(e1.t.extras)} em serviços extras (${pctTxt(parte(e1.t.extras, e1.t.faturamento))} do faturamento dele).`]);
+  const pr1 = top(l => l.t.produtos, l => l.t.produtos > 0); if (pr1) dest.push([`${nm(pr1)} vendeu mais produtos`, `${money0(pr1.t.produtos)} em produtos.`]);
+  L.filter(l => l.r != null && l.r < .9).forEach(l => aten.push([`${nm(l)} ficou em ${pctTxt(l.r)} da meta`, `Faltaram ${money0(l.meta.faturamento - l.t.faturamento)} para bater.`]));
+  L.filter(l => l.v != null && l.v <= -.1 && !(l.r != null && l.r < .9)).forEach(l => aten.push([`${nm(l)} caiu ${Math.abs(Math.round(l.v * 100))}%`, `Comparado com ${FB_ANT[tipo]}.`]));
+  ["extras","produtos"].forEach(k => { const med = sh(k); if (!med) return;
+    const fr = L.filter(l => l.t.faturamento > 0 && l.t[k] / l.t.faturamento <= med * .7).map(nm);
+    if (fr.length) aten.push([`${k === "extras" ? "Extras" : "Produtos"} abaixo da equipe: ${fr.join(", ")}`, `Participação bem menor que a média da equipe (${pctTxt(med)} do faturamento).`]); });
+
+  // retorno por barbeiro: ponto forte e o que fazer no próximo período
+  const nivelItem = (real, ref) => ref > 0 ? nivelDe(Math.min(10, real / ref * 9)) : null;
+  const porB = L.slice().sort((a, b) => (b.r ?? 0) - (a.r ?? 0)).map(l => {
+    const itens = [["faturamento", l.r], ["extras", l.meta.extras ? l.t.extras / l.meta.extras : sh("extras") ? (l.t.extras / (l.t.faturamento || 1)) / sh("extras") : null], ["produtos", l.meta.produtos ? l.t.produtos / l.meta.produtos : sh("produtos") ? (l.t.produtos / (l.t.faturamento || 1)) / sh("produtos") : null]].filter(x => x[1] != null);
+    const fraco = itens.slice().sort((a, b) => a[1] - b[1])[0], forte = itens.slice().sort((a, b) => b[1] - a[1])[0];
+    const nvF = fraco ? nivelDe(Math.min(10, fraco[1] * 9)) || "warn" : "warn";
+    const forteTxt = forte && forte[1] >= .95 ? (forte[0] === "faturamento" ? `bateu ${pctTxt(forte[1])} da meta` : forte[0] === "extras" ? `extras acima da equipe (${money0(l.t.extras)})` : `produtos acima da equipe (${money0(l.t.produtos)})`) : l.v != null && l.v > 0 ? `cresceu ${Math.round(l.v * 100)}% sobre ${FB_ANT[tipo]}` : "manteve os atendimentos";
+    const dica = fraco ? DICAS[fraco[0]][nvF] : DICAS.geral[l.av.nivel || "warn"][0][1];
+    return { l, forteTxt, dica, foco:fraco ? COMP_NOME[fraco[0]].toLowerCase() : "" };
+  });
+
+  // plano para o próximo período
+  const plano = [];
+  const piorItem = ["extras","produtos"].map(k => [k, L.filter(l => l.t.faturamento > 0 && l.t[k] / l.t.faturamento <= sh(k) * .8).length]).sort((a, b) => b[1] - a[1])[0];
+  if (rT != null && rT < 1) plano.push(["Recuperar o faturamento", DICAS.faturamento[nivelDe(Math.min(10, rT * 9)) || "bad"]]);
+  if (piorItem && piorItem[1]) plano.push([`Treinar a oferta de ${piorItem[0]}`, DICAS[piorItem[0]].bad]);
+  const pn = periodo(tipo, moverPeriodo(p, 1)), metaProx = L.reduce((s, l) => s + metaNoIntervalo(metasDe(l.b.id), pn.ini, pn.fim).faturamento, 0);
+  if (metaProx) { const du = uteisEntre(pn.ini, pn.fim); plano.push([`Meta para ${FB_PROX[tipo]}: ${money0(metaProx)}`, `${du} dias de trabalho, cerca de ${money0(metaProx / (du || 1))} por dia para a equipe${L.length ? ` (${money0(metaProx / (du || 1) / L.length)} por barbeiro)` : ""}.`]); }
+  if (bateram.length) plano.push(["Reconhecer quem bateu", `Parabenize ${bateram.map(nm).join(", ")} na frente da equipe e peça para contar o que funcionou.`]);
+  DICAS.geral[nvT || "warn"].forEach(([t, x]) => { if (plano.length < 4) plano.push([t, x]); });
+
+  // texto para mandar no grupo da equipe
+  _fbTxt = [`*Feedback ${FB_DO[tipo]} · ${p.label}*`, "", resumo, "",
+    dest.length ? "*Destaques*\n" + dest.map(d => `• ${d[0]}: ${d[1]}`).join("\n") : "",
+    "*Para " + FB_PROX[tipo] + "*\n" + plano.slice(0, 3).map(x => `• *${x[0]}*\n${x[1]}`).join("\n")].filter(Boolean).join("\n\n").replace(/\n{3,}/g, "\n\n");
+  _fbCSV = [["Barbeiro","Faturamento","Meta","% da meta","Variação %","Serviços","Extras","Produtos","Assinaturas","Nota","Ponto forte","Foco"],
+    ...porB.map(({ l, forteTxt, foco }) => [l.b.nome, l.t.faturamento, l.meta.faturamento, pcCSV(l.r), pcCSV(l.v), l.t.servicos, l.t.extras, l.t.produtos, l.t.assinatura_rs, l.av.nota ?? "", forteTxt, foco])];
+
+  const lista = (xs, cls) => xs.map(([t, x]) => `<div class="dica"><i class="${cls}">${cls === "good" ? "★" : "!"}</i><div><b>${esc(t)}</b><span>${esc(x)}</span></div></div>`).join("");
+  const kpi = (rot, v, va, extra) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${money0(v)}</span><div class="meta"><span>${extra}</span></div>${va != null ? `<div class="meta">${varPill(variacao(v, va), "vs anterior")}</div>` : ""}</div>`;
+  return `${nav}
+  <section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Feedback ${FB_DO[tipo]}</h2><button class="btn sm" data-act="copiarFeedback">Copiar para WhatsApp</button></div>
+    <span class="sm muted">${esc(p.label)} · ${emAndamento ? "em andamento, fecha em " + dataBR(p.fim) : `entregue em ${pD(p.fim).toLocaleDateString("pt-BR", { weekday:"long", day:"2-digit", month:"2-digit" })}`}</span>
+    <div class="hero" style="margin-top:14px">
+      <div class="gauge">${gaugeSVG(notaT)}<div class="gv"><b class="${nvT || "muted"}">${notaT == null ? "—" : dec1(notaT)}</b><span class="${nvT || "muted"}">${nvT ? "equipe · " + NIVEL_NOME[nvT] : "sem nota"}</span></div></div>
+      <div class="hero-txt"><span class="lbl">Nota média da equipe</span><div class="hero-dica ${nvT || ""}" style="margin-top:8px">${esc(resumo)}</div>
+        <div class="cmp">${rT != null ? pill(rT >= 1 ? "good" : rT >= .9 ? "warn" : "bad", `${pctTxt(rT)} da meta`) : ""}${varPill(vT, "vs " + FB_ANT[tipo].split(" ").slice(1).join(" "))}${pill("n", `${bateram.length} de ${comMeta.length} bateram`)}</div></div>
+    </div></section>
+  <div class="kpis">
+    ${kpi("Faturamento", T.faturamento, TA.faturamento, metaT ? `meta ${money0(metaT)}` : "sem meta")}
+    ${kpi("Serviços extras", T.extras, TA.extras, `${pctTxt(sh("extras"))} do faturamento`)}
+    ${kpi("Produtos", T.produtos, TA.produtos, `${pctTxt(sh("produtos"))} do faturamento`)}
+    ${kpi("Assinaturas", T.assinatura_rs, TA.assinatura_rs, `${pctTxt(sh("assinatura_rs"))} do faturamento`)}
+  </div>
+  ${dest.length ? `<section class="card"><h2>Destaques</h2><div class="dicas fb">${lista(dest, "good")}</div></section>` : ""}
+  ${aten.length ? `<section class="card"><h2>Pontos de atenção</h2><div class="dicas fb">${lista(aten, "warn")}</div></section>` : ""}
+  <section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Retorno para cada barbeiro</h2><button class="btn sm" data-act="baixarFeedback">Exportar planilha</button></div>
+    <span class="sm muted">Ponto forte e o que fazer em ${FB_PROX[tipo]}. Use na conversa individual.</span>
+    <div style="margin-top:6px">${porB.map(({ l, forteTxt, dica }) => `<div class="fbb"><div class="fbb-top"><span class="who">${avatar(l.b, "av-sm")}<b>${esc(l.b.nome)}</b></span><span class="nb ${l.av.nivel || "muted"}">${l.av.nota == null ? "—" : dec1(l.av.nota)}</span></div>
+      <div class="cmp">${pill("n", money0(l.t.faturamento))}${l.r != null ? pill(l.r >= 1 ? "good" : l.r >= .9 ? "warn" : "bad", `${pctTxt(l.r)} da meta`) : ""}${varPill(l.v, "vs anterior")}</div>
+      <p class="sm" style="margin:8px 0 0"><b class="good">Ponto forte:</b> ${esc(forteTxt)}.</p>
+      <p class="sm" style="margin:4px 0 0"><b class="acc">Para ${FB_PROX[tipo]}:</b> ${esc(dica)}</p></div>`).join("")}</div></section>
+  <section class="card"><h2>Plano para ${FB_PROX[tipo]}</h2><div class="dicas">${plano.slice(0, 4).map(([t, x], i) => `<div class="dica"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(x)}</span></div></div>`).join("")}</div></section>`;
+}
+// avisa o admin quando um feedback novo fecha (o da semana chega no domingo)
+function avisoFeedback(){
+  if (S.me.papel !== "admin" || S.comoAdmin) return "";
+  const novos = FB_TIPOS.map(([k, n]) => [k, n, fbFechado(k)]).filter(([k, , q]) => q.fim >= addD(today(), -6) && lsGet("bp-fb-visto-" + k, "") < q.fim);
+  if (!novos.length) return "";
+  const [k, , q] = novos.at(-1);
+  return `<section class="card fb-aviso"><div class="card-head" style="align-items:center"><div><h2 style="margin:0">Feedback ${FB_DO[k]} pronto</h2><span class="sm muted">${esc(q.label)}${novos.length > 1 ? ` · também: ${novos.slice(0, -1).map(x => x[1].toLowerCase()).join(", ")}` : ""}</span></div><button class="btn sm" data-act="abrirFeedback" data-v="${k}">Ver feedback</button></div></section>`;
+}
+
 /* ======================= PÁGINA: BACKUP (ADMIN) ======================= */
 const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"]];
 const SB_REF = (SUPABASE_URL.match(/^https:\/\/([^.]+)\.supabase\.co/) || [])[1] || "";
@@ -1708,7 +1828,7 @@ async function pgBackup(){
 }
 
 /* ======================= RENDER ======================= */
-const PAGINAS = { backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { feedback:pgFeedback, backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -1799,6 +1919,11 @@ const ACOES = {
     if (!t || !navigator.clipboard) { window.open(GH_SQL + f, "_blank", "noopener"); return toast("Abri o arquivo no GitHub: copie o texto de lá e cole no SQL Editor."); }
     navigator.clipboard.writeText(t).then(() => toast(`${f} copiado. Cole no SQL Editor do Supabase e clique em Run.`), () => { window.open(GH_SQL + f, "_blank", "noopener"); toast("Não consegui copiar; abri o arquivo no GitHub."); });
   },
+  fbTipo: v => { S.fbTipo = v; S.fbRef = null; render(); },
+  fbPer: v => { const p = S.fbRef ? periodo(S.fbTipo, S.fbRef) : fbFechado(S.fbTipo); S.fbRef = +v ? moverPeriodo(p, +v) : null; if (S.fbRef && periodo(S.fbTipo, S.fbRef).fim === fbFechado(S.fbTipo).fim) S.fbRef = null; render(); },
+  abrirFeedback: v => { S.fbTipo = v; S.fbRef = null; ir("feedback"); },
+  copiarFeedback(){ if (!_fbTxt) return; (navigator.clipboard ? navigator.clipboard.writeText(_fbTxt) : Promise.reject()).then(() => toast("Feedback copiado. Cole no grupo da equipe no WhatsApp."), () => toast("Não consegui copiar neste aparelho.")); },
+  baixarFeedback(){ if (!_fbCSV) return; baixarCSV(`bold-feedback-${S.fbTipo}-${(S.fbRef ? periodo(S.fbTipo, S.fbRef) : fbFechado(S.fbTipo)).ini}.csv`, _fbCSV); toast("Planilha baixada."); },
   baixarRel(){ if (!_relCSV) return; baixarCSV(`bold-${S.rel}-${S.relMes.slice(0, 7)}.csv`, _relCSV); toast("Planilha baixada."); },
   lojaMes: v => { S.lojaMes = addM(S.lojaMes, +v); render(); },
   async salvarMetaLoja(){ await DB.salvarMetaLoja(S.lojaMes, parseNum($("#ml-fat").value)); S.metasLoja = await DB.metasLoja(); toast("Meta da barbearia salva."); render(); },
