@@ -149,6 +149,21 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
+.nav-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font:700 11px var(--body);display:inline-grid;place-items:center}
+.falta{padding:14px 0;border-bottom:1px solid var(--line)}.falta:last-child{border-bottom:0}
+.falta.quente{border-left:3px solid var(--bad);padding-left:12px}
+.falta-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.falta-top b{font-size:16px}
+.falta-resp{margin-top:10px;background:var(--surface-2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:14px}
+.falta-resp b{color:var(--accent-ink)}.falta-resp.ok b{color:var(--good)}
+.pill.urg.u4{background:var(--bad);color:#fff}
+.urg-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}@media (min-width:720px){.urg-chips{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.urg-chips .chip{width:100%;border-radius:12px;padding:8px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left}
+.urg-chips .chip span{font-size:11px;opacity:.75;font-weight:500}
+.chip.sm{font-size:12px;padding:6px 10px;min-height:0}
+.falta-box{text-align:left}.falta-box h2{text-align:center}.falta-box .xs.muted{text-align:center;display:block}
+.falta-lista{display:flex;flex-direction:column;gap:8px;margin:0 0 14px;max-height:50vh;overflow:auto}
+.falta-lista>div{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;background:var(--surface-2);border-radius:12px;padding:10px 12px}
+.falta-lista>div>span.xs,.falta-lista>div>span.sm{flex-basis:100%}
 .pods{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
 @media (min-width:720px){.pods{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .pod-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:24px}
@@ -410,6 +425,7 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="modal" id="aviso" role="dialog" aria-modal="true" aria-labelledby="avisoTit" hidden data-act="avisoOk"></div>
+<div class="modal" id="avisoF" role="dialog" aria-modal="true" aria-labelledby="avisoFTit" hidden></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" hidden><div><p id="modalTxt"></p><div class="row" style="justify-content:flex-end"><button class="btn ghost" id="modalNao">Cancelar</button><button class="btn" id="modalSim">Confirmar</button></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -505,6 +521,11 @@ const cloud = {
   async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); } },
   async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
+  // itens em falta: o barbeiro vê os dele (a RLS filtra), o admin vê todos
+  async faltas(){ const { data, error } = await sb.from("itens_falta").select("*").order("criado_em", { ascending:false }).limit(300); if (error) { console.warn(error); return null; } return data; },
+  async criarFalta(f){ const { error } = await sb.from("itens_falta").insert({ ...f, barbeiro_id:S.me.id }); if (error) throw new Error(/itens_falta/.test(error.message) ? "Falta rodar o arquivo 014_itens_falta.sql no Supabase." : error.message); },
+  async responderFalta(id, campos){ const { error } = await sb.from("itens_falta").update({ ...campos, respondido_em:new Date().toISOString() }).eq("id", id); if (error) throw error; },
+  async apagarFalta(id){ const { error } = await sb.from("itens_falta").delete().eq("id", id); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
   async inserirBarbeiro(row){ const { error } = await sb.from("equipe").insert(row); if (error) throw error; },
   // backup: todas as tabelas do Bold; a que ainda não existe no banco fica de fora
@@ -536,6 +557,7 @@ const cloud = {
       "010": await col("lancamentos", "comissao_rs"),
       "011": await fn("bp_trocar_email", { barbeiro:zero, novo:"" }),      // e-mail vazio: a função recusa sem mexer em nada
       "012": await fn("bp_excluir_barbeiro", { barbeiro:zero }),           // id que não existe: a função não faz nada
+      "014": await col("itens_falta", "id"),
     };
     const { data, error } = await sb.rpc("bp_verificar");
     r["013"] = !error; r["004"] = error ? null : !!data["004"]; r["006"] = error ? null : !!data["006"];
@@ -604,6 +626,24 @@ const demo = {
   async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); const x = { ...l, atualizado_em:new Date().toISOString() }; if (i >= 0) db.lanc[i] = x; else db.lanc.push(x); demoSave(); },
   async salvarLancs(lista){ for (const l of lista) await demo.salvarLanc(l); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
+  async faltas(){
+    const db = demoLoad(), me = await demo.me();
+    if (!db.faltas) {  // exemplos para a demonstração
+      const h = Date.now(), t = m => new Date(h - m * 60000).toISOString();
+      db.faltas = [
+        { id:"f1", barbeiro_id:"b1", item:"Pomada efeito matte", quanto_tem:"1 pote pela metade", urgencia:4, obs:"Os clientes estão pedindo bastante.", status:"aberto", criado_em:t(35) },
+        { id:"f2", barbeiro_id:"b3", item:"Lâminas de navalha", quanto_tem:"1 caixa", urgencia:3, obs:"", status:"aberto", criado_em:t(150) },
+        { id:"f3", barbeiro_id:"b2", item:"Toalhas descartáveis", quanto_tem:"2 pacotes", urgencia:2, obs:"", status:"aberto", criado_em:t(60 * 20) },
+        { id:"f4", barbeiro_id:"b2", item:"Álcool 70%", quanto_tem:"meio litro", urgencia:2, obs:"", status:"a_caminho", resposta:"Já pedi, chega na quarta. Até lá use o galão do armário.", previsao:addD(today(), 3), respondido_em:t(60 * 26), criado_em:t(60 * 30) },
+        { id:"f5", barbeiro_id:"b4", item:"Shampoo para barba", quanto_tem:"acabou", urgencia:4, obs:"", status:"resolvido", resposta:"Comprei hoje, está na prateleira.", respondido_em:t(60 * 50), criado_em:t(60 * 52) },
+      ];
+      demoSave();
+    }
+    return db.faltas.filter(f => me.papel === "admin" || f.barbeiro_id === me.id).map(f => ({ ...f }));
+  },
+  async criarFalta(f){ const db = demoLoad(); db.faltas = db.faltas || []; db.faltas.unshift({ id:"f" + Date.now(), barbeiro_id:S.me.id, status:"aberto", criado_em:new Date().toISOString(), ...f }); demoSave(); },
+  async responderFalta(id, campos){ Object.assign(demoLoad().faltas.find(f => f.id === id), campos, { respondido_em:new Date().toISOString() }); demoSave(); },
+  async apagarFalta(id){ const db = demoLoad(); db.faltas = db.faltas.filter(f => f.id !== id); demoSave(); },
   async inserirBarbeiro(row){ demoLoad().equipe.push({ ...row }); demoSave(); },
   async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [] }; },
   async verificar(){ return Object.fromEntries(MIGR.map(m => [m[0], true])); },
@@ -831,10 +871,10 @@ const primeiroNome = n => {
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["feedback","Feedback","✎"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["feedback","Feedback","✎"],["faltas","Itens em falta","!"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
-  ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["ajustes","Ajustes","⚙"],
+  ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["faltas","Itens em falta","!"],["ajustes","Ajustes","⚙"],
 ];
 const ICONE = {
   dashboard:'<svg class="ic sym-ic" viewBox="40 20 870 560"><g fill="currentColor" stroke="none"><path d="M55,450 C 70,180 300,30 470,33 C 640,36 790,140 845,278 L 740,300 C 690,200 590,125 450,128 C 280,132 120,260 55,450 Z"/><g class="ndl"><path d="M470,392 L890,312 L500,505 Z"/><circle cx="467" cy="445" r="76"/></g></g></svg>',
@@ -849,13 +889,14 @@ const ICONE = {
   relatorios:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 16v-3M12 16V9M16 16v-5"/></svg>',
   backup:'<svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/></svg>',
   feedback:'<svg class="ic" viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5"/></svg>',
+  faltas:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/></svg>',
   historico:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v3.5h3.5"/><path d="M12 8v4l3 2"/></svg>',
 };
 // "ver como barbeiro": o admin navega pela visão do barbeiro (sem Ajustes, que mexeria na conta do admin)
 const abas = () => S.me.papel === "admin" ? ABAS_ADMIN : S.comoAdmin ? ABAS_BARB.filter(a => a[0] !== "ajustes") : ABAS_BARB;
 function renderNav(){
   const lista = abas().filter(a => !(a[0] === "painel" && S.me.papel === "admin" && !S.ver));
-  $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}</button>`).join("");
+  $("#sidenav").innerHTML = lista.map(([k,n]) => `<button class="nav-i" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}>${ICONE[k]}${k === "painel" && S.me.papel === "admin" ? esc(primeiroNome(nomeDe(S.ver))) : n}${k === "faltas" && faltaBadge() ? `<span class="nav-badge">${faltaBadge()}</span>` : ""}</button>`).join("");
   // rodapé: só a marca (velocímetro + PERFORMANCE), que leva direto aos resultados; o resto fica no menu ☰
   const casa = S.me.papel === "admin" ? "dashboard" : "painel", naCasa = S.tab === casa && !(S.me.papel === "admin" && S.ver);
   const bn = $("#bottomnav");
@@ -1102,7 +1143,7 @@ async function pgDashboard(){
   const tile = (rot, val, sub, nv) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num ${nv || ""}">${val}</span><div class="meta"><span>${sub}</span></div></div>`;
   const kpiMeta = (rot, real, metaAte, metaCheia, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${metaCheia > 0 ? barra(real / metaCheia, metaAte / metaCheia, metaAte / metaCheia) + `<div class="meta"><span>${pctTxt(real / metaCheia)} da meta do mês</span><span>meta ${fmt(metaCheia)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
 
-  return `${avisoNovos}${avisoFeedback()}
+  return `${avisoNovos}${avisoFaltasCard()}${avisoFeedback()}
   <section class="card"><div class="hero">
     <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
     <div class="hero-txt"><div class="card-head"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><button class="arrow" data-tab="equipe" aria-label="Ver ranking da equipe">↗</button></div><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
@@ -1684,6 +1725,87 @@ async function pgAjustes(){
   ${DEMO ? `<section class="card"><h2>Demonstração</h2><p class="sm muted" style="margin:4px 0 0">Os dados desta demonstração são fictícios e ficam só neste aparelho.</p><div class="actions"><button class="btn danger" data-act="resetDemo">Recomeçar com dados novos</button></div></section>` : ""}`;
 }
 
+/* ======================= PÁGINA: ITENS EM FALTA ======================= */
+// O barbeiro avisa o que está acabando; o admin vê ao abrir o app, responde (mensagem + quando chega) ou marca resolvido.
+const URG = { 1:["Baixa","n","dá para esperar"], 2:["Média","warn","acaba em poucos dias"], 3:["Alta","bad","acaba hoje ou amanhã"], 4:["Acabou","bad","já acabou"] };
+let FALTAS = [];
+const faltaBadge = () => S.me.papel === "admin" ? FALTAS.filter(f => f.status === "aberto").length : FALTAS.filter(f => f.respondido_em && f.respondido_em > lsGet("bp-falta-vista-" + S.me.id, "")).length;
+const haTempo = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? "agora" : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} dia${m >= 2880 ? "s" : ""}`; };
+const urgPill = u => `<span class="pill urg u${u} ${URG[u][1]}">${u === 4 ? "● " : ""}${URG[u][0]}</span>`;
+async function carregarFaltas(){ const f = await DB.faltas(); FALTAS = f || []; return f != null; }
+const ordFaltas = l => l.slice().sort((a, b) => (a.status === "aberto" ? 0 : 1) - (b.status === "aberto" ? 0 : 1) || b.urgencia - a.urgencia || (a.criado_em < b.criado_em ? 1 : -1));
+function respostaTxt(f){
+  if (!f.respondido_em) return "";
+  return `<div class="falta-resp ${f.status === "resolvido" ? "ok" : ""}"><b>${f.status === "resolvido" ? "Resolvido" : "Resposta do admin"}${f.previsao && f.status !== "resolvido" ? ` · chega em ${esc(pD(f.previsao).toLocaleDateString("pt-BR", { weekday:"short", day:"2-digit", month:"2-digit" }))}` : ""}</b>${f.resposta ? `<span>${esc(f.resposta)}</span>` : ""}<span class="xs muted">${haTempo(f.respondido_em)}</span></div>`;
+}
+async function pgFaltas(){
+  const ok = await carregarFaltas(), admin = S.me.papel === "admin";
+  $("#psub").textContent = admin ? "O que os barbeiros avisaram que está acabando" : "Avise o admin quando um item estiver acabando";
+  const semTabela = ok ? "" : `<section class="card"><p class="sm">Falta rodar o arquivo <b>014_itens_falta.sql</b> no Supabase. Veja em Backup → Arquivos SQL.</p></section>`;
+  if (!admin) {
+    lsSet("bp-falta-vista-" + S.me.id, new Date().toISOString()); renderNav();
+    const meus = ordFaltas(FALTAS);
+    return `${semTabela}<section class="card"><h2>Avisar item em falta</h2><span class="sm muted">O admin recebe o aviso na tela assim que abrir o app.</span>
+      <div class="fgrid" style="margin-top:12px"><label class="f">O que está acabando<input id="fa-item" maxlength="120" placeholder="Ex.: pomada efeito matte"></label>
+        <label class="f">Quanto ainda tem<input id="fa-qtd" maxlength="120" placeholder="Ex.: 1 pote pela metade"></label></div>
+      <span class="lbl" style="display:block;margin-top:12px">Urgência</span>
+      <div class="chips urg-chips" style="margin-top:6px">${[1,2,3,4].map(u => `<button class="chip" data-act="faUrg" data-v="${u}" aria-pressed="${(S.faUrg || 2) === u}"><b>${URG[u][0]}</b><span>${URG[u][2]}</span></button>`).join("")}</div>
+      <label class="f" style="margin-top:12px">Observação (opcional)<textarea id="fa-obs" maxlength="500" placeholder="Ex.: os clientes estão pedindo bastante"></textarea></label>
+      <div class="actions"><button class="btn" data-act="faEnviar">Avisar o admin</button></div></section>
+    <section class="card"><h2>Meus avisos</h2><span class="sm muted">A resposta do admin aparece aqui e na tela quando você abrir o app.</span>
+      <div style="margin-top:6px">${meus.length ? meus.map(f => `<div class="falta"><div class="falta-top">${urgPill(f.urgencia)}<b>${esc(f.item)}</b>${f.status === "resolvido" ? pill("good", "Resolvido") : f.status === "a_caminho" ? pill("n", "A caminho") : pill("warn", "Aguardando o admin")}</div>
+        <div class="xs muted">${f.quanto_tem ? `Ainda tinha: ${esc(f.quanto_tem)} · ` : ""}${haTempo(f.criado_em)}</div>${f.obs ? `<p class="sm" style="margin:6px 0 0">${esc(f.obs)}</p>` : ""}
+        ${respostaTxt(f)}${f.respondido_em ? "" : `<div class="actions" style="margin-top:8px"><button class="btn ghost sm" data-act="faApagar" data-v="${f.id}">Cancelar aviso</button></div>`}</div>`).join("") : `<p class="empty">Nenhum aviso ainda.</p>`}</div></section>`;
+  }
+  const abertos = ordFaltas(FALTAS.filter(f => f.status !== "resolvido")), feitos = FALTAS.filter(f => f.status === "resolvido").slice(0, 20);
+  const pend = abertos.filter(f => f.status === "aberto").length, urg = abertos.filter(f => f.status === "aberto" && f.urgencia >= 3).length;
+  const RAPIDAS = ["Já comprei, chega amanhã.", "Pedido feito, chega esta semana.", "Use o estoque do armário enquanto isso.", "Vamos ficar sem por enquanto, ofereça outro produto."];
+  const card = f => { const b = S.equipe.find(e => e.id === f.barbeiro_id);
+    return `<div class="falta ${f.status === "aberto" && f.urgencia >= 3 ? "quente" : ""}"><div class="falta-top">${urgPill(f.urgencia)}<b>${esc(f.item)}</b>${f.status === "a_caminho" ? pill("n", "Respondido") : ""}</div>
+      <div class="who" style="margin-top:6px">${b ? avatar(b, "av-sm") : ""}<span class="sm"><b>${esc(b ? primeiroNome(b.nome) : "Barbeiro")}</b> · ${haTempo(f.criado_em)}${f.quanto_tem ? ` · ainda tem: ${esc(f.quanto_tem)}` : ""}</span></div>
+      ${f.obs ? `<p class="sm" style="margin:6px 0 0">“${esc(f.obs)}”</p>` : ""}
+      ${respostaTxt(f)}
+      ${S.faAberto !== f.id ? `<div class="actions" style="margin-top:10px"><button class="btn sm" data-act="faResolver" data-v="${f.id}">Resolvido</button><button class="btn sm sec" data-act="faAbrir" data-v="${f.id}">${f.respondido_em ? "Editar resposta" : "Responder"}</button></div>` : `<div class="falta-form" data-f="${f.id}">
+        <div class="chips" style="margin-top:10px">${RAPIDAS.map(r => `<button class="chip sm" data-act="faRapida" data-v="${f.id}" data-txt="${esc(r)}">${esc(r)}</button>`).join("")}</div>
+        <div class="fgrid" style="margin-top:8px"><label class="f">Mensagem para o barbeiro<textarea data-fr="msg" maxlength="500" placeholder="Ex.: chega quinta; até lá use o pote da bancada 2">${esc(f.resposta || "")}</textarea></label>
+          <label class="f">Quando chega<input type="date" data-fr="prev" value="${f.previsao || ""}" min="${today()}"></label></div>
+        <div class="actions"><button class="btn" data-act="faResolver" data-v="${f.id}">Resolvido</button><button class="btn sec" data-act="faResponder" data-v="${f.id}">Enviar resposta</button><button class="btn ghost" data-act="faAbrir" data-v="">Cancelar</button></div></div>`}</div>`; };
+  return `${semTabela}<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Em aberto</h2>${pill(pend ? (urg ? "bad" : "warn") : "good", pend ? `${pend} sem resposta${urg ? ` · ${urg} urgente${urg > 1 ? "s" : ""}` : ""}` : "Tudo respondido")}</div>
+      <span class="sm muted">Responda com uma mensagem e quando chega, ou toque em Resolvido. O barbeiro vê a resposta na tela quando abrir o app.</span>
+      <div style="margin-top:6px">${abertos.length ? abertos.map(card).join("") : `<p class="empty">Nada faltando. 👌</p>`}</div></section>
+    ${feitos.length ? `<section class="card"><h2>Resolvidos</h2><span class="sm muted">Os últimos ${feitos.length}</span><div style="margin-top:6px">${feitos.map(f => { const b = S.equipe.find(e => e.id === f.barbeiro_id);
+      return `<div class="li"><div style="min-width:0;flex:1 1 200px"><b>${esc(f.item)}</b> <span class="xs muted">· ${esc(b ? primeiroNome(b.nome) : "")} · resolvido ${haTempo(f.respondido_em)}</span>${f.resposta ? `<div class="xs muted">${esc(f.resposta)}</div>` : ""}</div>${urgPill(f.urgencia)}</div>`; }).join("")}</div></section>` : ""}`;
+}
+// aviso na tela ao abrir o app: o admin vê o que está sem resposta; o barbeiro vê as respostas novas
+async function avisoFaltas(){
+  if (S.comoAdmin) return;
+  if (!await carregarFaltas()) return;
+  renderNav();
+  const av = $("#avisoF"), admin = S.me.papel === "admin";
+  if (admin) {
+    const pend = ordFaltas(FALTAS.filter(f => f.status === "aberto")); if (!pend.length) return;
+    const ult = pend.map(f => f.criado_em).sort().at(-1), visto = lsGet("bp-falta-modal", { em:"", ult:"" });
+    if (visto.ult >= ult && Date.now() - Date.parse(visto.em || 0) < 3 * 3600e3) return;  // nada novo e já viu há pouco
+    av.innerHTML = `<div class="aviso-box falta-box"><h2 id="avisoFTit">${pend.length} ${pend.length > 1 ? "itens" : "item"} em falta</h2><p class="xs muted" style="margin:0 0 12px">Avisado pelos barbeiros</p>
+      <div class="falta-lista">${pend.slice(0, 5).map(f => `<div>${urgPill(f.urgencia)}<b>${esc(f.item)}</b><span class="xs muted">${esc(primeiroNome(nomeDe(f.barbeiro_id)))}${f.quanto_tem ? ` · tem ${esc(f.quanto_tem)}` : ""}</span></div>`).join("")}${pend.length > 5 ? `<span class="xs muted">e mais ${pend.length - 5}</span>` : ""}</div>
+      <button class="btn" data-act="faVer">Ver e responder</button><button class="btn ghost" data-act="faDepois">Depois</button></div>`;
+    av.dataset.ult = ult;
+  } else {
+    const vista = lsGet("bp-falta-vista-" + S.me.id, ""), novas = FALTAS.filter(f => f.respondido_em && f.respondido_em > vista);
+    if (!novas.length) return;
+    av.innerHTML = `<div class="aviso-box falta-box"><h2 id="avisoFTit">O admin respondeu</h2><p class="xs muted" style="margin:0 0 12px">Sobre os itens em falta que você avisou</p>
+      <div class="falta-lista">${novas.map(f => `<div>${f.status === "resolvido" ? pill("good", "Resolvido") : pill("n", "A caminho")}<b>${esc(f.item)}</b>${f.previsao && f.status !== "resolvido" ? `<span class="xs">Chega em ${esc(pD(f.previsao).toLocaleDateString("pt-BR", { weekday:"long", day:"2-digit", month:"2-digit" }))}</span>` : ""}${f.resposta ? `<span class="sm">${esc(f.resposta)}</span>` : ""}</div>`).join("")}</div>
+      <button class="btn" data-act="faEntendi">Ok, entendi</button></div>`;
+  }
+  av.hidden = false;
+}
+function avisoFaltasCard(){
+  if (S.me.papel !== "admin" || S.comoAdmin) return "";
+  const pend = FALTAS.filter(f => f.status === "aberto"); if (!pend.length) return "";
+  const urg = pend.filter(f => f.urgencia >= 3).length;
+  return `<section class="card" style="border-color:var(${urg ? "--bad" : "--warn"})"><div class="card-head" style="align-items:center"><div><h2 style="margin:0">${pend.length} ${pend.length > 1 ? "itens" : "item"} em falta</h2><span class="sm muted">${pend.slice(0, 3).map(f => esc(f.item)).join(", ")}${pend.length > 3 ? "…" : ""}${urg ? ` · ${urg} urgente${urg > 1 ? "s" : ""}` : ""}</span></div><button class="btn sm" data-tab="faltas">Responder</button></div></section>`;
+}
+
 /* ======================= PÁGINA: FEEDBACK DA EQUIPE (ADMIN) ======================= */
 // Cada período fecha no último dia (semana = segunda a domingo, então o da semana chega no domingo)
 // e vira um feedback: resumo, destaques, pontos de atenção, um retorno por barbeiro e o plano para o próximo período.
@@ -1799,7 +1921,7 @@ function avisoFeedback(){
 }
 
 /* ======================= PÁGINA: BACKUP (ADMIN) ======================= */
-const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"]];
+const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"],["014","014_itens_falta.sql","Itens em falta"]];
 const SB_REF = (SUPABASE_URL.match(/^https:\/\/([^.]+)\.supabase\.co/) || [])[1] || "";
 const SB_PAINEL = SB_REF ? `https://supabase.com/dashboard/project/${SB_REF}` : "";
 const GH_SQL = "https://github.com/ViniciusMoreira0058/bold-performance/blob/main/supabase/";
@@ -1879,7 +2001,7 @@ async function pgBackup(){
 }
 
 /* ======================= RENDER ======================= */
-const PAGINAS = { feedback:pgFeedback, backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { faltas:pgFaltas, feedback:pgFeedback, backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -1906,6 +2028,7 @@ async function carregarBase(){
   CFG = { nome:cfg.nome, dias_trabalho:(cfg.dias_trabalho || [1,2,3,4,5,6]).map(Number) };
   S.equipe = eq; S.metas = mt;
   S.metasLoja = (S.comoAdmin || S.me).papel === "admin" ? await DB.metasLoja() : [];
+  if (!S.comoAdmin) await carregarFaltas().catch(() => {});
   try {
     const rs = await DB.resumoEquipe(addD(today(), -90), today()), sm = k => rs.reduce((a, r) => a + (+r[k] || 0), 0);
     const fat = sm("servicos") + sm("extras") + sm("produtos") + sm("assinatura_rs");
@@ -2079,6 +2202,27 @@ const ACOES = {
   dia: v => { v = +v; const s = new Set(CFG.dias_trabalho); s.has(v) ? s.delete(v) : s.add(v); if (!s.size) return; CFG.dias_trabalho = [...s].sort(); render(); },
   async salvarCfg(){ CFG.nome = $("#a-nome").value.trim() || "Barbearia"; await DB.salvarConfig(CFG); toast("Ajustes salvos."); render(); },
   async novaSenha(){ const s = prompt("Nova senha (mínimo 6 caracteres):"); if (!s) return; if (s.length < 6) return toast("A senha precisa de pelo menos 6 caracteres."); const { error } = await sb.auth.updateUser({ password:s }); toast(error ? "Erro: " + error.message : "Senha alterada."); },
+  faUrg: v => { S.faUrg = +v; document.querySelectorAll('[data-act="faUrg"]').forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v)); },
+  async faEnviar(){
+    const item = $("#fa-item").value.trim(); if (!item) return toast("Escreva o que está acabando.");
+    await DB.criarFalta({ item, quanto_tem:$("#fa-qtd").value.trim() || null, urgencia:S.faUrg || 2, obs:$("#fa-obs").value.trim() || null });
+    S.faUrg = 2; toast("Aviso enviado ao admin."); render();
+  },
+  async faApagar(v){ if (!await confirmar("Cancelar este aviso?")) return; await DB.apagarFalta(v); render(); },
+  faRapida(v, ev){ const t = ev.target.closest("[data-txt]"), box = document.querySelector(`.falta-form[data-f="${v}"] [data-fr="msg"]`); if (t && box) { box.value = t.dataset.txt; box.focus(); } },
+  async faResponder(v){
+    const f = document.querySelector(`.falta-form[data-f="${v}"]`), msg = f.querySelector('[data-fr="msg"]').value.trim(), prev = f.querySelector('[data-fr="prev"]').value || null;
+    if (!msg && !prev) return toast("Escreva uma mensagem ou escolha quando chega.");
+    await DB.responderFalta(v, { status:"a_caminho", resposta:msg || null, previsao:prev }); S.faAberto = null; toast("Resposta enviada. O barbeiro vê quando abrir o app."); render();
+  },
+  faAbrir: v => { S.faAberto = v || null; render(); },
+  async faResolver(v){
+    const f = document.querySelector(`.falta-form[data-f="${v}"]`), msg = f ? f.querySelector('[data-fr="msg"]').value.trim() : (FALTAS.find(x => x.id === v) || {}).resposta || "";
+    await DB.responderFalta(v, { status:"resolvido", resposta:msg || null }); S.faAberto = null; toast("Marcado como resolvido."); render();
+  },
+  faVer(){ const av = $("#avisoF"); lsSet("bp-falta-modal", { em:new Date().toISOString(), ult:av.dataset.ult || "" }); av.hidden = true; ir("faltas"); },
+  faDepois(){ const av = $("#avisoF"); lsSet("bp-falta-modal", { em:new Date().toISOString(), ult:av.dataset.ult || "" }); av.hidden = true; },
+  faEntendi(){ lsSet("bp-falta-vista-" + S.me.id, new Date().toISOString()); $("#avisoF").hidden = true; renderNav(); },
   avisoOk(v, ev){
     const av = $("#aviso"); if (ev && ev.target.closest(".aviso-box") && !ev.target.closest("button")) return;  // clique dentro do cartão não fecha
     lsSet("bp-visto-" + S.me.id, av.dataset.marca || ""); av.hidden = true; if (S.tab !== "painel") ir("painel"); else reanimarGauges();
@@ -2305,6 +2449,7 @@ async function iniciar(){
   const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
   reanimarGauges();
   avisoAtualizacao().catch(console.error);
+  avisoFaltas().catch(console.error);
   setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
 }
 // ao voltar para o app (celular desbloqueado, troca de aba, PWA reaberto) recarrega os dados
@@ -2351,8 +2496,8 @@ async function aoVoltar(){
   const v = await versaoApp(); if (v != null && _versao != null && v !== _versao) return location.reload();
   if (!S.me || $("#app").hidden || $("#app").classList.contains("menu-open")) return;
   // telas com formulário não são redesenhadas para não apagar o que está sendo digitado
-  const form = ["lancar","metas","barbeiros","ajustes"].includes(S.tab) || document.activeElement?.matches?.("input,textarea,select");
-  try { await carregarBase(); if (!form) await render(); await avisoAtualizacao(); } catch (e) { console.error(e); }
+  const form = ["lancar","metas","barbeiros","ajustes","faltas"].includes(S.tab) || document.activeElement?.matches?.("input,textarea,select");
+  try { await carregarBase(); if (!form) await render(); await avisoAtualizacao(); await avisoFaltas(); } catch (e) { console.error(e); }
 }
 document.addEventListener("visibilitychange", () => { if (document.hidden) _saiuEm = Date.now(); else aoVoltar(); });
 addEventListener("pageshow", e => { if (e.persisted) { _saiuEm = 0; aoVoltar(); } });
