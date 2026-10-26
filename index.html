@@ -152,6 +152,8 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 .metas-ind{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px;margin-top:14px}@media (min-width:960px){.metas-ind{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .metas-ind .mi{display:flex;flex-direction:column;gap:6px;min-width:0}
 .nav-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font:700 11px var(--body);display:inline-grid;place-items:center}
+.cat-off{opacity:.55}.num-sm{white-space:nowrap}.cat-ed{align-items:flex-end}
+.chips.cat-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.cat-chips .chip{justify-content:center}
 .falta{padding:14px 0;border-bottom:1px solid var(--line)}.falta:last-child{border-bottom:0}
 .falta.quente{border-left:3px solid var(--bad);padding-left:12px}
 .falta-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.falta-top b{font-size:16px}
@@ -539,6 +541,9 @@ const cloud = {
   async criarFalta(f){ const { error } = await sb.from("itens_falta").insert({ ...f, barbeiro_id:S.me.id }); if (error) throw new Error(/itens_falta/.test(error.message) ? "Falta rodar o arquivo 014_itens_falta.sql no Supabase." : error.message); },
   async responderFalta(id, campos){ const { error } = await sb.from("itens_falta").update({ ...campos, respondido_em:new Date().toISOString() }).eq("id", id); if (error) throw error; },
   async apagarFalta(id){ const { error } = await sb.from("itens_falta").delete().eq("id", id); if (error) throw error; },
+  async catalogo(){ const { data, error } = await sb.from("catalogo").select("*").order("nome"); if (error) { console.warn(error); return null; } return data; },
+  async salvarItem(it){ const { error } = it.id ? await sb.from("catalogo").update({ nome:it.nome, preco:it.preco, ativo:it.ativo }).eq("id", it.id) : await sb.from("catalogo").insert({ tipo:it.tipo, nome:it.nome, preco:it.preco }); if (error) throw new Error(/catalogo/.test(error.message) ? "Falta rodar o arquivo 016_catalogo.sql no Supabase." : error.message); },
+  async apagarItem(id){ const { error } = await sb.from("catalogo").delete().eq("id", id); if (error) throw error; },
   async resumoEquipe(ini, fim){ const { data, error } = await sb.rpc("bp_resumo_equipe", { inicio:ini, fim }); if (error) throw error; return data; },
   async inserirBarbeiro(row){ const { error } = await sb.from("equipe").insert(row); if (error) throw error; },
   // backup: todas as tabelas do Bold; a que ainda não existe no banco fica de fora
@@ -552,7 +557,7 @@ const cloud = {
       }
     };
     const T = {};
-    for (const [t, o] of [["barbearia_config",["id"]],["equipe",["id"]],["convites",["email"]],["metas",["barbeiro_id","mes"]],["metas_barbearia",["mes"]],["lancamentos",["barbeiro_id","data"]],["receita_assinaturas",["data"]],["itens_falta",["criado_em"]]]) { const r = await tab(t, o); if (r) T[t] = r; }
+    for (const [t, o] of [["barbearia_config",["id"]],["equipe",["id"]],["convites",["email"]],["metas",["barbeiro_id","mes"]],["metas_barbearia",["mes"]],["lancamentos",["barbeiro_id","data"]],["receita_assinaturas",["data"]],["itens_falta",["criado_em"]],["catalogo",["nome"]]]) { const r = await tab(t, o); if (r) T[t] = r; }
     return T;
   },
   // quais arquivos SQL já rodaram: confere colunas, tabelas e funções (sem mudar nada); 004 e 006 só com o 013
@@ -571,6 +576,7 @@ const cloud = {
       "011": await fn("bp_trocar_email", { barbeiro:zero, novo:"" }),      // e-mail vazio: a função recusa sem mexer em nada
       "012": await fn("bp_excluir_barbeiro", { barbeiro:zero }),           // id que não existe: a função não faz nada
       "014": await col("itens_falta", "id"),
+      "016": await col("catalogo", "id"),
     };
     const { data, error } = await sb.rpc("bp_verificar");
     r["013"] = !error; r["004"] = error ? null : !!data["004"]; r["006"] = error ? null : !!data["006"];
@@ -657,8 +663,18 @@ const demo = {
   async criarFalta(f){ const db = demoLoad(); db.faltas = db.faltas || []; db.faltas.unshift({ id:"f" + Date.now(), barbeiro_id:S.me.id, status:"aberto", criado_em:new Date().toISOString(), ...f }); demoSave(); },
   async responderFalta(id, campos){ Object.assign(demoLoad().faltas.find(f => f.id === id), campos, { respondido_em:new Date().toISOString() }); demoSave(); },
   async apagarFalta(id){ const db = demoLoad(); db.faltas = db.faltas.filter(f => f.id !== id); demoSave(); },
+  async catalogo(){
+    const db = demoLoad();
+    if (!db.catalogo) { let n = 0; const it = (tipo, nome, preco) => ({ id:"c" + (++n), tipo, nome, preco, ativo:true });  // exemplos para a demonstração
+      db.catalogo = [it("servico","Corte",50), it("servico","Barba",40), it("servico","Corte + barba",80), it("servico","Corte infantil",40),
+        it("extra","Sobrancelha",20), it("extra","Pigmentação",35), it("extra","Hidratação",30), it("extra","Relaxamento",45), it("extra","Limpeza de pele",40),
+        it("produto","Pomada efeito matte",55), it("produto","Óleo para barba",45), it("produto","Shampoo para barba",50), it("produto","Balm pós-barba",40), it("produto","Minoxidil",89)]; demoSave(); }
+    return db.catalogo.map(c => ({ ...c }));
+  },
+  async salvarItem(it){ const db = demoLoad(); if (it.id) Object.assign(db.catalogo.find(c => c.id === it.id), { nome:it.nome, preco:it.preco, ativo:it.ativo }); else db.catalogo.push({ id:"c" + Date.now(), tipo:it.tipo, nome:it.nome, preco:it.preco, ativo:true }); demoSave(); },
+  async apagarItem(id){ const db = demoLoad(); db.catalogo = db.catalogo.filter(c => c.id !== id); demoSave(); },
   async inserirBarbeiro(row){ demoLoad().equipe.push({ ...row }); demoSave(); },
-  async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [], itens_falta:db.faltas || [] }; },
+  async backupTudo(){ const db = demoLoad(); return { barbearia_config:[{ id:1, ...db.config }], equipe:db.equipe, convites:db.convites, metas:db.metas, metas_barbearia:db.metasLoja || [], lancamentos:db.lanc, receita_assinaturas:db.assin || [], itens_falta:db.faltas || [], catalogo:db.catalogo || [] }; },
   async verificar(){ return Object.fromEntries(MIGR.map(m => [m[0], true])); },
   async resumoEquipe(ini, fim){
     const me = await demo.me(), db = demoLoad();
@@ -884,7 +900,7 @@ const primeiroNome = n => {
 
 /* ======================= NAVEGAÇÃO ======================= */
 const ABAS_ADMIN = [
-  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["feedback","Feedback","✎"],["faltas","Itens em falta","!"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
+  ["dashboard","Dashboard","◎"],["equipe","Equipe","◎"],["painel","Barbeiro","◔"],["loja","Meta da barbearia","◎"],["metas","Meta do barbeiro","◎"],["lancar","Lançamentos","＋"],["relatorios","Relatórios","▤"],["feedback","Feedback","✎"],["faltas","Itens em falta","!"],["catalogo","Serviços e produtos","$"],["barbeiros","Barbeiros","☰"],["backup","Backup","⛁"],["ajustes","Ajustes","⚙"],
 ];
 const ABAS_BARB = [
   ["painel","Meu painel","◔"],["calc","Minha meta","◎"],["historico","Histórico","☰"],["faltas","Itens em falta","!"],["ajustes","Ajustes","⚙"],
@@ -895,6 +911,7 @@ const ICONE = {
   painel:'<svg class="ic" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4.5-5"/><circle cx="12" cy="16" r="1.6"/></svg>',
   metas:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/></svg>',
   lancar:'<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+  catalogo:'<svg class="ic" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8" r="1.5"/></svg>',
   barbeiros:'<svg class="ic" viewBox="0 0 24 24"><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path d="M8.5 16 18 4M15.5 16 6 4"/></svg>',
   ajustes:'<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>',
   calc:'<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8.5 7.5h7M8.5 12h1M12 12h1M15 12h.5M8.5 16h1M12 16h1M15 16h.5"/></svg>',
@@ -1070,11 +1087,13 @@ function cardComissao(lancMes, perfil){
   const meta = +perfil.ganho_desejado || 0, real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, perfil);
   const proj = feitos ? com / feitos * u : 0, mes = pD(h).toLocaleDateString("pt-BR",{month:"long"});
   const partes = [["Serviços", t.servicos * cs, `${pctTxt(cs)} de ${money0(t.servicos)}`], ["Serviços extras", t.extras * cs, `${pctTxt(cs)} de ${money0(t.extras)}`], ["Produtos", t.produtos * cp, `${pctTxt(cp)} de ${money0(t.produtos)}`]];
-  const tEx = t.qtd_extras ? t.extras / t.qtd_extras : EXTRA_MEDIO;
+  const cEx = precoMedio("extra"), cPr = precoMedio("produto");
+  const tEx = cEx ? cEx.v : t.qtd_extras ? t.extras / t.qtd_extras : EXTRA_MEDIO, tPr = cPr ? cPr.v : PRODUTO_MEDIO;
+  const exemplo = (c, pal) => c ? `${pal} médio ${money0(c.v)}, ex.: ${c.itens.slice().sort((a, b) => b.preco - a.preco).slice(0, 2).map(i => `${esc(i.nome)} ${money0(+i.preco)}`).join(", ")}` : `${pal} de cerca de ${money0(pal === "produto" ? tPr : tEx)}`;
   const cen = restantes ? [
-    ["+1 serviço extra por dia", tEx * cs * restantes, `extra de cerca de ${money0(tEx)} × ${restantes} dias`],
-    ["+1 produto por dia", PRODUTO_MEDIO * cp * restantes, `produto de cerca de ${money0(PRODUTO_MEDIO)} × ${restantes} dias`],
-    ["+2 extras e +2 produtos por dia", (2 * tEx * cs + 2 * PRODUTO_MEDIO * cp) * restantes, "os dois juntos, todo dia"]] : [];
+    ["+1 serviço extra por dia", tEx * cs * restantes, `${exemplo(cEx, "extra")} · ${restantes} dias`],
+    ["+1 produto por dia", tPr * cp * restantes, `${exemplo(cPr, "produto")} · ${restantes} dias`],
+    ["+2 extras e +2 produtos por dia", (2 * tEx * cs + 2 * tPr * cp) * restantes, "os dois juntos, todo dia"]] : [];
   const nv = !meta || !proj ? "n" : proj >= meta ? "good" : proj >= meta * .9 ? "warn" : "bad";
   const melhor = cen.length ? proj + cen[2][1] : 0;
   return `<section class="card com-est"><div class="card-head"><div><h2>Comissão estimada de ${mes}</h2><span class="sm muted">${real ? "Pela comissão lançada pelo admin até hoje" : `Pela sua comissão: ${numIn(perfil.comissao_servicos) || 0}% em serviços e extras, ${numIn(perfil.comissao_produtos) || 0}% em produtos`}</span></div></div>
@@ -1831,6 +1850,30 @@ async function pgFaltas(){
     ${feitos.length ? `<section class="card"><h2>Resolvidos</h2><span class="sm muted">Os últimos ${feitos.length}</span><div style="margin-top:6px">${feitos.map(f => { const b = S.equipe.find(e => e.id === f.barbeiro_id);
       return `<div class="li"><div style="min-width:0;flex:1 1 200px"><b>${esc(f.item)}</b> <span class="xs muted">· ${esc(b ? primeiroNome(b.nome) : "")} · resolvido ${haTempo(f.respondido_em)}</span>${f.resposta ? `<div class="xs muted">${esc(f.resposta)}</div>` : ""}</div>${urgPill(f.urgencia)}</div>`; }).join("")}</div></section>` : ""}`;
 }
+/* ======================= PÁGINA: SERVIÇOS E PRODUTOS (admin) ======================= */
+let CATALOGO = null;  // null = tabela ainda não criada
+async function carregarCatalogo(){ CATALOGO = await DB.catalogo(); return CATALOGO != null; }
+const CAT_TIPOS = [["servico","Serviços","Corte, barba, combos…"],["extra","Serviços extras","Sobrancelha, pigmentação, hidratação…"],["produto","Produtos","Pomadas, óleos, shampoos…"]];
+// preço médio dos itens ativos de um tipo (usado na comissão estimada)
+const precoMedio = tipo => { const l = (CATALOGO || []).filter(c => c.tipo === tipo && c.ativo && +c.preco > 0); return l.length ? { v:l.reduce((a, c) => a + +c.preco, 0) / l.length, itens:l } : null; };
+async function pgCatalogo(){
+  await carregarCatalogo();
+  $("#psub").textContent = "Tabela de preços da barbearia";
+  if (CATALOGO == null) return `<section class="card"><p class="sm">Falta rodar o arquivo <b>016_catalogo.sql</b> no Supabase. Veja em Backup → Arquivos SQL.</p></section>`;
+  const tipo = S.caTipo || "extra";
+  const linha = c => S.caEdit === c.id ? `<div class="li cat-ed" data-c="${c.id}"><label class="f" style="flex:1 1 180px">Nome<input data-ce="nome" maxlength="80" value="${esc(c.nome)}"></label><label class="f" style="width:120px">Preço R$<input data-ce="preco" inputmode="decimal" value="${numIn(c.preco)}"></label>
+      <div class="actions" style="margin:0;flex-basis:100%"><button class="btn sm" data-act="caSalvar" data-v="${c.id}">Salvar</button><button class="btn sm sec" data-act="caAtivo" data-v="${c.id}">${c.ativo ? "Desativar" : "Reativar"}</button><button class="btn sm ghost" style="color:var(--bad)" data-act="caApagar" data-v="${c.id}">Excluir</button><button class="btn sm ghost" data-act="caEditar" data-v="">Cancelar</button></div></div>`
+    : `<div class="li${c.ativo ? "" : " cat-off"}"><span class="sm" style="flex:1;min-width:0"><b>${esc(c.nome)}</b>${c.ativo ? "" : ` <span class="xs muted">· desativado</span>`}</span><b class="num-sm">${money(+c.preco)}</b><button class="btn sm ghost" data-act="caEditar" data-v="${c.id}">Editar</button></div>`;
+  const secao = ([k, n, ex]) => { const l = CATALOGO.filter(c => c.tipo === k).sort((a, b) => (b.ativo - a.ativo) || a.nome.localeCompare(b.nome, "pt-BR")), pm = precoMedio(k);
+    return `<section class="card"><div class="card-head" style="align-items:center"><div><h2 style="margin:0">${n}</h2><span class="sm muted">${l.length ? `${l.filter(c => c.ativo).length} ativo${l.filter(c => c.ativo).length === 1 ? "" : "s"}${pm ? ` · preço médio ${money(pm.v)}` : ""}` : ex}</span></div></div>
+      <div class="list">${l.map(linha).join("") || `<p class="empty">Nenhum item cadastrado.</p>`}</div></section>`; };
+  return `<section class="card"><h2>Cadastrar item</h2><span class="sm muted">Os preços dos extras e dos produtos entram na comissão estimada do barbeiro ("+1 produto por dia = +R$ X"). Mudou o preço? É só tocar em Editar.</span>
+    <div class="chips cat-chips" style="margin-top:12px">${CAT_TIPOS.map(([k, n]) => `<button class="chip" data-act="caTipo" data-v="${k}" aria-pressed="${tipo === k}">${n}</button>`).join("")}</div>
+    <div class="fgrid" style="margin-top:12px"><label class="f">Nome<input id="ca-nome" maxlength="80" placeholder="${tipo === "produto" ? "Ex.: pomada efeito matte" : tipo === "extra" ? "Ex.: sobrancelha" : "Ex.: corte degradê"}"></label><label class="f">Preço R$<input id="ca-preco" inputmode="decimal" placeholder="0,00"></label></div>
+    <div class="actions"><button class="btn" data-act="caCriar">Cadastrar</button></div></section>
+  ${CAT_TIPOS.map(secao).join("")}`;
+}
+
 // aviso na tela ao abrir o app: o admin vê o que está sem resposta; o barbeiro vê as respostas novas
 async function avisoFaltas(){
   if (S.comoAdmin) return;
@@ -1976,7 +2019,7 @@ function avisoFeedback(){
 }
 
 /* ======================= PÁGINA: BACKUP (ADMIN) ======================= */
-const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"],["014","014_itens_falta.sql","Itens em falta"]];
+const MIGR = [["002","002_cadastro_livre.sql","Barbeiro se cadastra pelo app"],["003","003_fotos.sql","Fotos de perfil"],["004","004_so_admin_lanca.sql","Só o admin lança resultados"],["005","005_meta_barbearia.sql","Meta da barbearia"],["006","006_so_admin_metas.sql","Só o admin muda metas e comissões"],["007","007_cadastro_sem_login.sql","Cadastrar barbeiro antes do login"],["008","008_receita_assinaturas.sql","Receita de assinaturas (planilha)"],["009","009_assinatura_barbeiro.sql","Assinaturas por barbeiro"],["010","010_comissao.sql","Comissão até hoje"],["011","011_trocar_email.sql","Trocar e-mail do barbeiro"],["012","012_excluir_barbeiro.sql","Excluir conta do barbeiro"],["013","013_verificacao.sql","Conferência completa desta aba"],["014","014_itens_falta.sql","Itens em falta"],["016","016_catalogo.sql","Serviços e produtos (preços)"]];
 const SB_REF = (SUPABASE_URL.match(/^https:\/\/([^.]+)\.supabase\.co/) || [])[1] || "";
 const SB_PAINEL = SB_REF ? `https://supabase.com/dashboard/project/${SB_REF}` : "";
 const GH_SQL = "https://github.com/ViniciusMoreira0058/bold-performance/blob/main/supabase/";
@@ -2056,7 +2099,7 @@ async function pgBackup(){
 }
 
 /* ======================= RENDER ======================= */
-const PAGINAS = { faltas:pgFaltas, feedback:pgFeedback, backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
+const PAGINAS = { catalogo:pgCatalogo, faltas:pgFaltas, feedback:pgFeedback, backup:pgBackup, relatorios:pgRelatorios, loja:pgLoja, dashboard:pgDashboard, equipe:pgEquipe, painel:pgPainel, metas:pgMetas, lancar:pgLancar, barbeiros:pgBarbeiros, ajustes:pgAjustes, calc:pgCalc, historico:pgHistorico };
 let renderSeq = 0;
 async function render(){
   const seq = ++renderSeq;
@@ -2084,6 +2127,7 @@ async function carregarBase(){
   S.equipe = eq; S.metas = mt;
   S.metasLoja = (S.comoAdmin || S.me).papel === "admin" ? await DB.metasLoja() : [];
   if (!S.comoAdmin) await carregarFaltas().catch(() => {});
+  await carregarCatalogo().catch(() => {});
   try {
     const rs = await DB.resumoEquipe(addD(today(), -90), today()), sm = k => rs.reduce((a, r) => a + (+r[k] || 0), 0);
     const fat = sm("servicos") + sm("extras") + sm("produtos") + sm("assinatura_rs");
@@ -2273,6 +2317,20 @@ const ACOES = {
     S.faUrg = 2; toast("Aviso enviado ao admin."); render();
   },
   async faApagar(v){ if (!await confirmar("Cancelar este aviso?")) return; await DB.apagarFalta(v); render(); },
+  caTipo: v => { S.caTipo = v; render(); },
+  caEditar: v => { S.caEdit = v || null; render(); },
+  async caCriar(){
+    const nome = $("#ca-nome").value.trim(), preco = parseNum($("#ca-preco").value);
+    if (!nome) return toast("Escreva o nome do item."); if (!(preco > 0)) return toast("Coloque o preço.");
+    await DB.salvarItem({ tipo:S.caTipo || "extra", nome, preco }); toast(`${nome} cadastrado.`); render();
+  },
+  async caSalvar(v){
+    const f = document.querySelector(`.cat-ed[data-c="${v}"]`), c = CATALOGO.find(x => x.id === v), nome = f.querySelector('[data-ce="nome"]').value.trim(), preco = parseNum(f.querySelector('[data-ce="preco"]').value);
+    if (!nome) return toast("Escreva o nome do item."); if (!(preco >= 0)) return toast("Preço inválido.");
+    await DB.salvarItem({ id:v, nome, preco, ativo:c.ativo }); S.caEdit = null; toast("Preço salvo."); render();
+  },
+  async caAtivo(v){ const c = CATALOGO.find(x => x.id === v); await DB.salvarItem({ ...c, ativo:!c.ativo }); S.caEdit = null; toast(c.ativo ? "Desativado: não entra mais na conta." : "Reativado."); render(); },
+  async caApagar(v){ const c = CATALOGO.find(x => x.id === v); if (!await confirmar(`Excluir ${c.nome}?`)) return; await DB.apagarItem(v); S.caEdit = null; render(); },
   faRapida(v, ev){ const t = ev.target.closest("[data-txt]"), box = document.querySelector(`.falta-form[data-f="${v}"] [data-fr="msg"]`); if (t && box) { box.value = t.dataset.txt; box.focus(); } },
   async faResponder(v){
     const f = document.querySelector(`.falta-form[data-f="${v}"]`), msg = f.querySelector('[data-fr="msg"]').value.trim(), prev = f.querySelector('[data-fr="prev"]').value || null;
