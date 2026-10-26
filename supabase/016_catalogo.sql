@@ -1,6 +1,6 @@
 -- Bold Performance · 016: serviços e produtos (tabela de preços)
 -- Rode no SQL Editor do Supabase (precisa do 007 já rodado). Pode rodar mais de uma vez.
--- O admin cadastra serviços, serviços extras, produtos e bebidas com o preço (e o de assinante); todos da equipe podem ver.
+-- O admin cadastra serviços, serviços extras, produtos e bebidas com o preço e o desconto de assinante em %; todos da equipe podem ver.
 -- Os preços entram na comissão estimada ("+1 produto por dia = +R$ X").
 
 create table if not exists public.catalogo (
@@ -9,8 +9,8 @@ create table if not exists public.catalogo (
   marca      text check (length(marca) <= 80),
   nome       text not null check (length(trim(nome)) between 1 and 80),
   preco      numeric(10,2) not null default 0 check (preco >= 0),   -- valor final
-  preco_assinante numeric(10,2) check (preco_assinante >= 0),           -- serviços: assinante · produtos: Prime/Black
-  preco_start     numeric(10,2) check (preco_start >= 0),               -- produtos: plano Start
+  desc_assinante numeric(5,2) check (desc_assinante >= 0 and desc_assinante < 100),  -- % · serviços: assinante · produtos: Prime/Black
+  desc_start     numeric(5,2) check (desc_start >= 0 and desc_start < 100),          -- % · produtos: plano Start
   ativo      boolean not null default true,
   criado_em  timestamptz not null default now()
 );
