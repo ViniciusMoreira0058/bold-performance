@@ -149,6 +149,13 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* velocímetros de serviços extras e produtos: embaixo da nota no celular, ao lado dela na tela larga */
 .minis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .mini{text-align:center;min-width:0}
+.modal.priv{z-index:95;overflow:auto;place-items:start center}
+.modal.priv>.priv-box{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 20px;max-width:640px;width:100%;margin:16px 0;font-size:14.5px;line-height:1.55}
+.priv-box h2{margin:0 0 4px;font-size:22px}.priv-box h3{font-size:15px;margin:18px 0 6px;color:var(--accent-ink)}
+.priv-box p{margin:0 0 8px;font-size:14.5px}.priv-box ul{margin:0 0 8px;padding-left:20px}.priv-box li{margin:3px 0}
+.aceite{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);text-align:left}
+.aceite input{width:20px;height:20px;min-height:0;flex:0 0 20px;margin-top:1px;accent-color:var(--accent)}
+.aceite .link{display:inline;padding:0;font-size:inherit}
 .metas-ind{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px;margin-top:14px}@media (min-width:960px){.metas-ind{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .metas-ind .mi{display:flex;flex-direction:column;gap:6px;min-width:0}
 .nav-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font:700 11px var(--body);display:inline-grid;place-items:center}
@@ -432,6 +439,7 @@ img.avatar{object-fit:cover;background:var(--surface-2);display:block}
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="modal" id="aviso" role="dialog" aria-modal="true" aria-labelledby="avisoTit" hidden data-act="avisoOk"></div>
 <div class="modal" id="avisoF" role="dialog" aria-modal="true" aria-labelledby="avisoFTit" hidden></div>
+<div class="modal priv" id="priv" role="dialog" aria-modal="true" aria-labelledby="privTit" hidden></div>
 <div class="modal" id="modal" role="dialog" aria-modal="true" hidden><div><p id="modalTxt"></p><div class="row" style="justify-content:flex-end"><button class="btn ghost" id="modalNao">Cancelar</button><button class="btn" id="modalSim">Confirmar</button></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -527,6 +535,12 @@ const cloud = {
   async salvarLancs(lista){ for (let i = 0; i < lista.length; i += 200) { const { error } = await sb.from("lancamentos").upsert(lista.slice(i, i + 200).map(l => ({ ...l, atualizado_em:new Date().toISOString() })), { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); } },
   async salvarLanc(l){ const { error } = await sb.from("lancamentos").upsert({ ...l, atualizado_em:new Date().toISOString() }, { onConflict:"barbeiro_id,data" }); if (error) throw faltaColuna(error); },
   async excluirLanc(barbeiro, data){ const { error } = await sb.from("lancamentos").delete().eq("barbeiro_id", barbeiro).eq("data", data); if (error) throw error; },
+  // privacidade (LGPD): aceite da política e pedidos sobre os próprios dados
+  async aceitarPrivacidade(){ const em = new Date().toISOString(); const { error } = await sb.from("equipe").update({ privacidade_aceita_em:em }).eq("id", S.me.id); if (error) throw error; return em; },
+  async aceiteNoCadastro(){ const { data } = await sb.auth.getUser(); return data && data.user && data.user.user_metadata ? data.user.user_metadata.privacidade || null : null; },
+  async pedidos(){ const { data, error } = await sb.from("pedidos_dados").select("*").order("criado_em", { ascending:false }).limit(200); if (error) { console.warn(error); return null; } return data; },
+  async criarPedido(p){ const { error } = await sb.from("pedidos_dados").insert({ ...p, barbeiro_id:S.me.id }); if (error) throw new Error(/pedidos_dados/.test(error.message) ? "Falta rodar o arquivo 015_privacidade.sql no Supabase." : error.message); },
+  async atenderPedido(id, resposta){ const { error } = await sb.from("pedidos_dados").update({ status:"atendido", resposta, atendido_em:new Date().toISOString() }).eq("id", id); if (error) throw error; },
   // itens em falta: o barbeiro vê os dele (a RLS filtra), o admin vê todos
   async faltas(){ const { data, error } = await sb.from("itens_falta").select("*").order("criado_em", { ascending:false }).limit(300); if (error) { console.warn(error); return null; } return data; },
   async criarFalta(f){ const { error } = await sb.from("itens_falta").insert({ ...f, barbeiro_id:S.me.id }); if (error) throw new Error(/itens_falta/.test(error.message) ? "Falta rodar o arquivo 014_itens_falta.sql no Supabase." : error.message); },
@@ -604,7 +618,7 @@ let demoDB = null;
 const demoLoad = () => { if (!demoDB) { demoDB = lsGet("bp-demo", null); if (!demoDB || demoDB.v !== 4) { demoDB = gerarDemo(); demoSave(); } } return demoDB; };
 const demoSave = () => lsSet("bp-demo", demoDB);
 const demo = {
-  async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; return demoLoad().equipe.find(e => e.id === id) || null; },
+  async me(){ const id = lsGet("bp-demo-user", null); if (!id) return null; const r = demoLoad().equipe.find(e => e.id === id) || null; if (r && !("privacidade_aceita_em" in r)) r.privacidade_aceita_em = "2026-10-20T12:00:00.000Z"; return r; },
   async config(){ return { ...demoLoad().config }; },
   async salvarConfig(c){ demoLoad().config = { nome:c.nome, dias_trabalho:c.dias_trabalho }; demoSave(); },
   async equipe(){ const me = await demo.me(); const all = demoLoad().equipe; return me.papel === "admin" ? all.map(e => ({...e})) : all.filter(e => e.id === me.id).map(e => ({...e})); },
@@ -632,6 +646,15 @@ const demo = {
   async salvarLanc(l){ if ((await demo.me()).papel !== "admin") throw new Error("Só o admin lança resultados."); const db = demoLoad(); const i = db.lanc.findIndex(x => x.barbeiro_id === l.barbeiro_id && x.data === l.data); const x = { ...l, atualizado_em:new Date().toISOString() }; if (i >= 0) db.lanc[i] = x; else db.lanc.push(x); demoSave(); },
   async salvarLancs(lista){ for (const l of lista) await demo.salvarLanc(l); },
   async excluirLanc(b, d){ const db = demoLoad(); db.lanc = db.lanc.filter(x => !(x.barbeiro_id === b && x.data === d)); demoSave(); },
+  async aceitarPrivacidade(){ const em = new Date().toISOString(); demoLoad().equipe.find(e => e.id === S.me.id).privacidade_aceita_em = em; demoSave(); return em; },
+  async aceiteNoCadastro(){ return null; },
+  async pedidos(){
+    const db = demoLoad(), me = await demo.me();
+    if (!db.pedidos) { db.pedidos = [{ id:"p1", barbeiro_id:"b4", tipo:"corrigir", detalhe:"Meu nome está sem acento: é Mateus Rôcha.", status:"aberto", criado_em:new Date(Date.now() - 3 * 3600e3).toISOString() }]; demoSave(); }
+    return db.pedidos.filter(x => me.papel === "admin" || x.barbeiro_id === me.id).map(x => ({ ...x }));
+  },
+  async criarPedido(p){ const db = demoLoad(); db.pedidos = db.pedidos || []; db.pedidos.unshift({ id:"p" + Date.now(), barbeiro_id:S.me.id, status:"aberto", criado_em:new Date().toISOString(), ...p }); demoSave(); },
+  async atenderPedido(id, resposta){ Object.assign(demoLoad().pedidos.find(x => x.id === id), { status:"atendido", resposta, atendido_em:new Date().toISOString() }); demoSave(); },
   async faltas(){
     const db = demoLoad(), me = await demo.me();
     if (!db.faltas) {  // exemplos para a demonstração
@@ -1149,7 +1172,7 @@ async function pgDashboard(){
   const tile = (rot, val, sub, nv) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num ${nv || ""}">${val}</span><div class="meta"><span>${sub}</span></div></div>`;
   const kpiMeta = (rot, real, metaAte, metaCheia, fmt) => `<div class="kpi"><span class="lbl">${rot}</span><span class="num">${fmt(real)}</span>${metaCheia > 0 ? barra(real / metaCheia, metaAte / metaCheia, metaAte / metaCheia) + `<div class="meta"><span>${pctTxt(real / metaCheia)} da meta do mês</span><span>meta ${fmt(metaCheia)}</span></div>` : `<div class="meta"><span>sem meta</span></div>`}</div>`;
 
-  return `${avisoNovos}${avisoFaltasCard()}${avisoFeedback()}
+  return `${avisoNovos}${avisoFaltasCard()}${avisoPedidosCard()}${avisoFeedback()}
   <section class="card"><div class="hero">
     <div class="gauge">${gaugeSVG(notaM)}<div class="gv"><b class="${nvM || "muted"}">${notaM == null ? "—" : dec1(notaM)}</b><span class="${nvM || "muted"}">${notaM == null ? "sem nota" : NIVEL_NOME[nvM]}</span></div></div>
     <div class="hero-txt"><div class="card-head"><span class="lbl">Nota geral da equipe · ${esc(pm.label)}</span><button class="arrow" data-tab="equipe" aria-label="Ver ranking da equipe">↗</button></div><h2>${notaM == null ? "Defina as metas do mês" : nvM === "good" ? "Equipe no ritmo" : nvM === "warn" ? "Equipe na média" : "Equipe abaixo do esperado"}</h2>
@@ -1748,9 +1771,72 @@ async function pgAjustes(){
     <div class="foto-box"><label class="av-edit">${avatar(S.me, "av-lg")}<input type="file" accept="image/*" data-ch="foto" data-id="${S.me.id}" aria-label="Escolher foto"></label>
       <div class="row" style="gap:8px"><label class="btn">Escolher foto<input type="file" accept="image/*" data-ch="foto" data-id="${S.me.id}"></label>${S.me.foto_url ? `<button class="btn ghost" data-act="tirarFoto" data-v="${S.me.id}">Remover</button>` : ""}</div></div></section>
   <section class="card"><h2>Aparência</h2><div class="chips" style="margin-top:8px">${[["dark","Escuro"],["light","Claro"]].map(([k,n]) => `<button class="chip" data-act="temaSet" data-v="${k}" aria-pressed="${(document.documentElement.dataset.theme || "dark") === k}">${n}</button>`).join("")}</div></section>
+  ${await cardPrivacidade()}
   <section class="card"><h2>Conta</h2><p class="sm muted" style="margin:4px 0 0">${esc(S.me.nome)} · ${esc(S.me.email || "")} · ${admin ? "Administrador" : "Barbeiro"}</p>
     <div class="actions">${DEMO ? "" : `<button class="btn sec" data-act="novaSenha">Trocar senha</button>`}<button class="btn ghost" data-act="sair">Sair</button></div></section>
   ${DEMO ? `<section class="card"><h2>Demonstração</h2><p class="sm muted" style="margin:4px 0 0">Os dados desta demonstração são fictícios e ficam só neste aparelho.</p><div class="actions"><button class="btn danger" data-act="resetDemo">Recomeçar com dados novos</button></div></section>` : ""}`;
+}
+
+/* ======================= PRIVACIDADE (LGPD) ======================= */
+const POLITICA_VERSAO = "26/10/2026";
+function politicaHTML(){
+  const loja = esc(CFG.nome && CFG.nome !== "Barbearia" ? CFG.nome : "a barbearia");
+  const sec = (t, x) => `<h3>${t}</h3>${x}`;
+  return `<h2 id="privTit">Política de privacidade</h2><p class="xs muted">Bold Performance · versão de ${POLITICA_VERSAO}</p>
+  ${sec("Quem cuida dos seus dados", `<p>Os dados deste app são tratados por ${loja}, que é a controladora dos dados (Lei 13.709/2018, LGPD). Dúvidas e pedidos: fale com o administrador da barbearia ou use a área <b>Privacidade e seus dados</b>, em Ajustes.</p>`)}
+  ${sec("Quais dados o app guarda", `<ul><li><b>Cadastro:</b> nome, e-mail e, se você quiser, foto de perfil.</li><li><b>Trabalho:</b> função (barbeiro ou admin), percentuais de comissão, metas e os valores do mês lançados pelo admin (serviços, serviços extras, produtos, assinaturas e comissão).</li><li><b>Uso do app:</b> os avisos de itens em falta e os pedidos sobre os seus dados.</li></ul><p>O app não guarda CPF, endereço, dados bancários nem dados de clientes da barbearia.</p>`)}
+  ${sec("Para que os dados são usados", `<ul><li>Mostrar o seu desempenho, a sua nota, as suas metas e a sua comissão.</li><li>Comparar resultados da equipe e gerar relatórios e feedback para a barbearia.</li><li>Organizar a reposição de itens em falta.</li></ul><p>Base legal: execução do contrato de trabalho ou de prestação de serviço e legítimo interesse da barbearia em acompanhar o próprio negócio (LGPD, art. 7º, V e IX).</p>`)}
+  ${sec("Quem vê os seus dados", `<p>Você vê só os seus números. O administrador da barbearia vê os dados de toda a equipe. Os outros barbeiros não veem os seus valores; nos comparativos aparece só a média da equipe.</p>`)}
+  ${sec("Onde os dados ficam", `<p>Os dados ficam no <b>Supabase</b> (banco de dados e login) e o app é servido pela <b>Vercel</b>. Os servidores desses serviços podem ficar fora do Brasil; essa transferência internacional segue as garantias da LGPD (art. 33). A conexão é criptografada e o acesso exige e-mail e senha.</p>`)}
+  ${sec("Por quanto tempo", `<p>Enquanto você fizer parte da equipe. Quando sair, o admin desativa ou exclui a sua conta; os dados podem ser guardados por até 5 anos só quando a lei exigir (por exemplo, registros de comissão) e depois são apagados.</p>`)}
+  ${sec("Seus direitos", `<p>Você pode, a qualquer momento: confirmar quais dados existem, <b>baixar uma cópia</b>, pedir <b>correção</b>, pedir a <b>exclusão</b> da conta e revogar o aceite (LGPD, art. 18). Faça isso em <b>Ajustes → Privacidade e seus dados</b>. A barbearia responde em até 15 dias.</p>`)}
+  ${sec("Mudanças", `<p>Se esta política mudar, o app avisa e pede um novo aceite.</p>`)}`;
+}
+function abrirPolitica(aceite){
+  const m = $("#priv");
+  m.innerHTML = `<div class="priv-box">${politicaHTML()}<div class="actions">${aceite ? `<button class="btn" data-act="privAceitar">Li e aceito</button>` : `<button class="btn" data-act="privFechar">Fechar</button>`}</div></div>`;
+  m.dataset.aceite = aceite ? "1" : ""; m.hidden = false; m.scrollTop = 0;
+}
+// primeiro acesso (ou política nova): pede o aceite uma vez
+async function avisoPrivacidade(){
+  if (S.comoAdmin || !S.me || S.me.papel !== "barbeiro" || !("privacidade_aceita_em" in S.me)) return;  // sem a coluna (015 não rodado) não pergunta
+  if (S.me.privacidade_aceita_em) return;
+  const doCadastro = await DB.aceiteNoCadastro().catch(() => null);
+  if (doCadastro) { try { S.me.privacidade_aceita_em = await DB.aceitarPrivacidade(); return; } catch (e) { console.warn(e); } }
+  const m = $("#priv");
+  m.innerHTML = `<div class="priv-box"><h2 id="privTit">Seus dados no Bold</h2>
+    <p>O Bold guarda o seu <b>nome, e-mail, foto (se você quiser) e os seus números de trabalho</b> (serviços, extras, produtos, assinaturas, comissão e metas) para mostrar o seu desempenho. Só você e o administrador da barbearia veem os seus valores.</p>
+    <p>Os dados ficam em servidores do Supabase, que podem estar fora do Brasil. Você pode baixar, corrigir ou pedir para apagar os seus dados quando quiser, em Ajustes.</p>
+    <div class="actions"><button class="btn" data-act="privAceitar">Li e aceito</button><button class="btn ghost" data-act="privLer">Ler a política completa</button></div></div>`;
+  m.dataset.aceite = "1"; m.hidden = false;
+}
+let PEDIDOS = [];
+const PED_TIPO = { ver:"Ver meus dados", corrigir:"Corrigir dados", apagar:"Apagar minha conta" };
+async function cardPrivacidade(){
+  const admin = S.me.papel === "admin";
+  if (admin) return `<section class="card"><h2>Privacidade</h2><span class="sm muted">Política mostrada aos barbeiros no primeiro acesso e no cadastro.</span><div class="actions"><button class="btn sec" data-act="privLer">Ler a política de privacidade</button></div></section>`;
+  const ok = (PEDIDOS = (await DB.pedidos()) || []) && true;
+  const meus = PEDIDOS.filter(x => x.barbeiro_id === S.me.id);
+  return `<section class="card"><h2>Privacidade e seus dados</h2><span class="sm muted">${S.me.privacidade_aceita_em ? `Você aceitou a política em ${new Date(S.me.privacidade_aceita_em).toLocaleDateString("pt-BR")}.` : "Veja como o Bold usa os seus dados."}</span>
+    <div class="actions"><button class="btn sec" data-act="privLer">Ler a política</button><button class="btn sec" data-act="meusDados">Baixar meus dados</button></div>
+    <div class="fgrid" style="margin-top:12px"><label class="f">Pedido para o admin<select id="pd-tipo"><option value="corrigir">Corrigir um dado</option><option value="ver">Confirmar quais dados existem</option><option value="apagar">Apagar minha conta e meus dados</option></select></label>
+      <label class="f">Detalhe (opcional)<input id="pd-det" maxlength="1000" placeholder="Ex.: meu nome está escrito errado"></label></div>
+    <div class="actions"><button class="btn" data-act="pedirDados">Enviar pedido</button></div>
+    ${meus.length ? `<div style="margin-top:8px">${meus.map(x => `<div class="li"><div style="min-width:0;flex:1 1 200px"><b>${PED_TIPO[x.tipo]}</b> <span class="xs muted">· ${haTempo(x.criado_em)}</span>${x.detalhe ? `<div class="xs muted">${esc(x.detalhe)}</div>` : ""}${x.resposta ? `<div class="sm" style="margin-top:4px"><b class="acc">Admin:</b> ${esc(x.resposta)}</div>` : ""}</div>${x.status === "atendido" ? pill("good", "Atendido") : pill("warn", "Aguardando")}</div>`).join("")}</div>` : ""}</section>`;
+}
+// admin: pedidos dos barbeiros sobre os próprios dados (prazo da LGPD: 15 dias)
+async function cardPedidosAdmin(){
+  const lista = await DB.pedidos(); if (lista == null) return `<section class="card"><h2>Pedidos sobre dados pessoais</h2><p class="sm muted">Rode o arquivo <b>015_privacidade.sql</b> para receber os pedidos dos barbeiros.</p></section>`;
+  PEDIDOS = lista; const abertos = lista.filter(x => x.status === "aberto"), feitos = lista.filter(x => x.status === "atendido").slice(0, 10);
+  const dias = x => 15 - Math.floor((Date.now() - Date.parse(x.criado_em)) / 864e5);
+  return `<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Pedidos sobre dados pessoais</h2>${pill(abertos.length ? "warn" : "good", abertos.length ? `${abertos.length} em aberto` : "Nenhum em aberto")}</div>
+    <span class="sm muted">Pela LGPD, responda em até 15 dias. Para apagar uma conta, use Excluir na lista de barbeiros abaixo.</span>
+    <div style="margin-top:6px">${abertos.map(x => { const b = S.equipe.find(e => e.id === x.barbeiro_id);
+      return `<div class="falta"><div class="falta-top">${pill(x.tipo === "apagar" ? "bad" : "n", PED_TIPO[x.tipo])}<b>${esc(b ? b.nome : "Barbeiro")}</b><span class="xs ${dias(x) <= 3 ? "bad" : "muted"}">· ${haTempo(x.criado_em)} · ${Math.max(0, dias(x))} dia(s) de prazo</span></div>
+        ${x.detalhe ? `<p class="sm" style="margin:6px 0 0">“${esc(x.detalhe)}”</p>` : ""}
+        <div class="fgrid" style="margin-top:8px"><label class="f">Resposta para o barbeiro<input data-pr="${x.id}" maxlength="1000" placeholder="${x.tipo === "apagar" ? "Ex.: conta excluída" : x.tipo === "corrigir" ? "Ex.: nome corrigido" : "Ex.: o app guarda nome, e-mail e seus números"}"></label></div>
+        <div class="actions">${x.tipo === "apagar" && b ? `<button class="btn danger sm" data-act="excluirBarbeiro" data-v="${b.id}">Excluir conta de ${esc(primeiroNome(b.nome))}</button>` : ""}<button class="btn sm" data-act="atenderPedido" data-v="${x.id}">Marcar atendido</button></div></div>`; }).join("")}
+    ${feitos.length ? `<p class="xs muted" style="margin:10px 0 0">Atendidos: ${feitos.map(x => `${esc(primeiroNome(nomeDe(x.barbeiro_id)))} (${PED_TIPO[x.tipo].toLowerCase()})`).join(" · ")}</p>` : ""}</div></section>`;
 }
 
 /* ======================= PÁGINA: ITENS EM FALTA ======================= */
@@ -1826,6 +1912,11 @@ async function avisoFaltas(){
       <button class="btn" data-act="faEntendi">Ok, entendi</button></div>`;
   }
   av.hidden = false;
+}
+function avisoPedidosCard(){
+  if (S.me.papel !== "admin" || S.comoAdmin) return "";
+  const ab = PEDIDOS.filter(x => x.status === "aberto"); if (!ab.length) return "";
+  return `<section class="card" style="border-color:var(--warn)"><div class="card-head" style="align-items:center"><div><h2 style="margin:0">${ab.length} pedido${ab.length > 1 ? "s" : ""} sobre dados pessoais</h2><span class="sm muted">${ab.map(x => `${esc(primeiroNome(nomeDe(x.barbeiro_id)))}: ${PED_TIPO[x.tipo].toLowerCase()}`).join(" · ")} · responda em até 15 dias</span></div><button class="btn sm" data-tab="backup">Ver pedidos</button></div></section>`;
 }
 function avisoFaltasCard(){
   if (S.me.papel !== "admin" || S.comoAdmin) return "";
@@ -2007,7 +2098,8 @@ async function pgBackup(){
       <div class="row" style="gap:8px"><button class="btn sm sec" data-act="ativo" data-v="${b.id}">${b.ativo ? "Desativar" : "Reativar"}</button><button class="btn sm danger" data-act="excluirBarbeiro" data-v="${b.id}">Excluir</button></div></div>`; };
 
   const cuidado = (t, txt, acao) => `<div class="li"><div style="min-width:0;flex:1 1 240px"><b>${t}</b><div class="sm muted">${txt}</div></div>${acao ? `<div class="row" style="gap:8px">${acao}</div>` : ""}</div>`;
-  return `<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Backup completo</h2><button class="btn sm" data-act="baixarBackup">Baixar backup</button></div>
+  const pedidosCard = await cardPedidosAdmin();
+  return `${pedidosCard}<section class="card"><div class="card-head" style="align-items:center"><h2 style="margin:0">Backup completo</h2><button class="btn sm" data-act="baixarBackup">Baixar backup</button></div>
     <span class="sm muted">Um arquivo com tudo do Bold: equipe, metas, lançamentos, meta da barbearia, assinaturas e ajustes. Baixe todo fim de mês e guarde no Google Drive ou no e-mail.</span>
     <div class="cmp" style="margin-top:10px">${stBk}</div>
     <div class="actions"><button class="btn sec" data-act="baixarLancCSV">Planilha de lançamentos</button><label class="btn ghost" style="cursor:pointer">Restaurar um backup<input type="file" accept=".json,application/json" data-ch="restaurar" hidden></label></div>
@@ -2057,6 +2149,7 @@ async function carregarBase(){
   S.equipe = eq; S.metas = mt;
   S.metasLoja = (S.comoAdmin || S.me).papel === "admin" ? await DB.metasLoja() : [];
   if (!S.comoAdmin) await carregarFaltas().catch(() => {});
+  if (!S.comoAdmin && S.me.papel === "admin") PEDIDOS = (await DB.pedidos().catch(() => null)) || [];
   try {
     const rs = await DB.resumoEquipe(addD(today(), -90), today()), sm = k => rs.reduce((a, r) => a + (+r[k] || 0), 0);
     const fat = sm("servicos") + sm("extras") + sm("produtos") + sm("assinatura_rs");
@@ -2260,6 +2353,23 @@ const ACOES = {
   faVer(){ const av = $("#avisoF"); lsSet("bp-falta-modal", { em:new Date().toISOString(), ult:av.dataset.ult || "" }); av.hidden = true; ir("faltas"); },
   faDepois(){ const av = $("#avisoF"); lsSet("bp-falta-modal", { em:new Date().toISOString(), ult:av.dataset.ult || "" }); av.hidden = true; },
   faEntendi(){ lsSet("bp-falta-vista-" + S.me.id, new Date().toISOString()); $("#avisoF").hidden = true; renderNav(); },
+  privLer(){ abrirPolitica($("#priv").dataset.aceite === "1" && !$("#priv").hidden); },
+  privFechar(){ $("#priv").hidden = true; },
+  async privAceitar(){ S.me.privacidade_aceita_em = await DB.aceitarPrivacidade(); $("#priv").hidden = true; toast("Obrigado! Aceite registrado."); },
+  async meusDados(){
+    toast("Juntando os seus dados…");
+    const me = S.equipe.find(e => e.id === S.me.id) || S.me, lancs = await DB.lancamentos("2000-01-01", today(), me.id);
+    const { foto_url, ...perfil } = me;
+    baixarArquivo(`meus-dados-bold-${today()}.json`, JSON.stringify({ gerado_em:new Date().toISOString(), politica:POLITICA_VERSAO, cadastro:{ ...perfil, tem_foto:!!foto_url }, metas:metasDe(me.id), lancamentos:lancs, itens_em_falta:FALTAS.filter(f => f.barbeiro_id === me.id), pedidos:PEDIDOS.filter(x => x.barbeiro_id === me.id) }, null, 1), "application/json");
+    toast("Arquivo com os seus dados baixado.");
+  },
+  async pedirDados(){
+    const tipo = $("#pd-tipo").value, detalhe = $("#pd-det").value.trim() || null;
+    if (tipo === "apagar" && !await confirmar("Pedir para apagar a sua conta? O admin vai excluir o seu login e todos os seus números do app. Não tem como desfazer depois.")) return;
+    await DB.criarPedido({ tipo, detalhe }); toast("Pedido enviado ao admin. A resposta aparece aqui."); render();
+  },
+  async atenderPedido(v){ const r = (document.querySelector(`[data-pr="${v}"]`) || {}).value; await DB.atenderPedido(v, (r || "").trim() || null); PEDIDOS = (await DB.pedidos()) || []; toast("Pedido marcado como atendido."); render(); },
+  demoSemAceite(){ const db = demoLoad(), b = db.equipe.find(e => e.id === "b1"); delete b.privacidade_aceita_em; b.privacidade_aceita_em = null; demoSave(); lsSet("bp-demo-user", "b1"); location.reload(); },
   avisoOk(v, ev){
     const av = $("#aviso"); if (ev && ev.target.closest(".aviso-box") && !ev.target.closest("button")) return;  // clique dentro do cartão não fecha
     lsSet("bp-visto-" + S.me.id, av.dataset.marca || ""); av.hidden = true; if (S.tab !== "painel") ir("painel"); else reanimarGauges();
@@ -2425,6 +2535,7 @@ function telaLogin(modo, msg){
     R.innerHTML = `<div class="auth"><div class="auth-box"><div class="auth-marca">${SIMBOLO()}<img src="icons/bold-wordmark.png" alt="Bold" width="260" height="88"><span>Performance</span></div>
       ${msg ? `<div class="auth-msg" style="background:var(--accent-soft)">${msg}</div>` : ""}
       <div class="auth-msg"><b>Modo demonstração.</b> Dados fictícios, salvos só neste aparelho. Escolha com qual conta entrar:</div>
+      <button type="button" class="link" data-act="demoSemAceite" style="align-self:center">Simular primeiro acesso de um barbeiro (pede o aceite)</button>
       <button class="btn" data-act="demoEntrar" data-v="adm">Entrar como admin (Vinicius)</button>
       ${eq.filter(e => e.papel === "admin" && e.id !== "adm").map(a => `<button class="btn ghost" data-act="demoEntrar" data-v="${a.id}">Entrar como ${esc(a.nome)} (admin)</button>`).join("")}
       ${eq.filter(e => e.papel === "barbeiro").map(b => `<button class="btn ghost" data-act="demoEntrar" data-v="${b.id}">Entrar como ${esc(b.nome)}${b.aprovado === false ? " (cadastro novo)" : ""}</button>`).join("")}
@@ -2436,6 +2547,7 @@ function telaLogin(modo, msg){
     ${msg ? `<div class="auth-msg">${msg}</div>` : ""}
     ${modo === "criar" ? `<p class="sm muted" style="margin:0">Crie a sua conta. O admin recebe o seu cadastro e libera o acesso.</p><label class="f">Seu nome<input id="au-nome" autocomplete="name" required></label>` : ""}
     <label class="f">E-mail<input type="email" id="au-email" autocomplete="email" required></label>
+    ${modo === "criar" ? `<label class="aceite"><input type="checkbox" id="au-aceite"><span>Li e aceito a <button type="button" class="link" data-act="privLer">Política de privacidade</button>. Meus dados de trabalho ficam visíveis para o admin da barbearia.</span></label>` : ""}
     ${modo !== "esqueci" ? `<label class="f">Senha<input type="password" id="au-senha" autocomplete="${modo === "criar" ? "new-password" : "current-password"}" minlength="6" required></label>` : ""}
     <button class="btn" type="submit">${titulos[modo]}</button>
     <div class="auth-links">${modo === "entrar" ? `<button type="button" class="link" data-auth="criar">Criar conta</button><button type="button" class="link" data-auth="esqueci">Esqueci a senha</button>` : `<button type="button" class="link" data-auth="entrar">Voltar para entrar</button>`}</div>
@@ -2450,7 +2562,8 @@ function telaLogin(modo, msg){
       else if (modo === "criar") {
         if (!senha || senha.length < 6) throw new Error("A senha precisa de pelo menos 6 caracteres.");
         const nome = ($("#au-nome").value || "").trim(); if (!nome) throw new Error("Preencha o seu nome.");
-        const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ emailRedirectTo:location.origin + location.pathname, data:{ app:"bold", nome } } }); if (error) throw error;
+        if (!$("#au-aceite").checked) throw new Error("Para criar a conta, aceite a política de privacidade.");
+        const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ emailRedirectTo:location.origin + location.pathname, data:{ app:"bold", nome, privacidade:new Date().toISOString() } } }); if (error) throw error;
         if (data.session) await iniciar(); else telaLogin("entrar", "Conta criada. Confirme pelo link que enviamos para o seu e-mail e depois entre aqui. O admin precisa aprovar o seu acesso.");
       } else { const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo:location.origin + location.pathname }); if (error) throw error; telaLogin("entrar", "Enviamos um link para criar uma nova senha."); }
     } catch (err) {
@@ -2486,7 +2599,7 @@ async function iniciar(){
   const resta = 1300 - (performance.now() - t0); if (resta > 0) await new Promise(r => setTimeout(r, resta));
   const sp = R.querySelector(".splash"); if (sp) sp.classList.add("sai");
   reanimarGauges();
-  avisoAtualizacao().catch(console.error);
+  avisoPrivacidade().then(() => avisoAtualizacao()).catch(console.error);
   avisoFaltas().catch(console.error);
   setTimeout(() => { R.hidden = true; R.innerHTML = ""; }, 380);
 }
