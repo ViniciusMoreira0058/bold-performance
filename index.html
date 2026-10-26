@@ -2064,7 +2064,11 @@ async function restaurarBackup(T){
   const atual = new Set((await DB.equipe()).map(e => e.id)), emails = new Set(S.equipe.map(e => (e.email || "").toLowerCase()).filter(Boolean));
   let novos = 0;
   const c = (T.barbearia_config || [])[0];
-  if (c && c.nome) { CFG.nome = c.nome; if (Array.isArray(c.dias_trabalho) && c.dias_trabalho.length) CFG.dias_trabalho = c.dias_trabalho; await DB.salvarConfig(CFG); }
+  if (c && c.nome) { CFG.nome = c.nome; if (Array.isArray(c.dias_trabalho) && c.dias_trabalho.length) CFG.dias_trabalho = c.dias_trabalho; if (c.pct_prime != null) { CFG.pct_prime = +c.pct_prime; CFG.pct_start = +c.pct_start || 0; } await DB.salvarConfig(CFG); }
+  if ((T.catalogo || []).length && await carregarCatalogo()) {  // tabela de preços: atualiza o que existe, cadastra o que falta
+    const ids = new Set(CATALOGO.map(x => x.id)), nomes = new Set(CATALOGO.map(x => x.tipo + "|" + (x.marca || "") + "|" + x.nome));
+    for (const it of T.catalogo) { if (ids.has(it.id)) await DB.salvarItem(it); else if (!nomes.has(it.tipo + "|" + (it.marca || "") + "|" + it.nome)) await DB.salvarItem({ ...it, id:null }); }
+  }
   for (const b of (T.equipe || []).filter(x => x.papel === "barbeiro" && x.id)) {
     const campos = { comissao_servicos:+b.comissao_servicos || 0, comissao_produtos:+b.comissao_produtos || 0, ganho_desejado:+b.ganho_desejado || 0 };
     if (atual.has(b.id)) { await DB.salvarPerfil(b.id, campos); continue; }
