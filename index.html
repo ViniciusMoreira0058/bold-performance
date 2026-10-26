@@ -257,6 +257,13 @@ td .nb{font:800 italic 16px var(--display)}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#000}
 .calc-out{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));margin-top:14px}
 .calc-out .num{font-size:24px;white-space:nowrap}
+.com-big{display:grid;gap:10px;grid-template-columns:repeat(3,1fr);margin-top:12px}
+.com-big .num{font-size:24px;white-space:nowrap}
+.com-cen{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));margin-top:10px}
+.com-cen>div{background:var(--card2,rgba(255,255,255,.04));border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.com-cen>div.top{border-color:var(--accent);background:var(--accent-soft)}
+.com-cen .num{font-size:22px}
+@media (max-width:520px){.com-big{grid-template-columns:1fr 1fr}.com-big>div:first-child{grid-column:1/-1}.com-big .num{font-size:22px}}
 .calc-out>div{background:var(--surface-2);border-radius:12px;padding:12px}
 
 .modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
@@ -1053,14 +1060,34 @@ async function pgPainel(){
   ${posRender(() => p.tipo !== "dia" && graficoEvo(doPer, metasDe(id), p))}`;
 }
 
-// meta de comissão do mês: comissão lançada pelo admin (ou a estimada pela %, enquanto não houver)
+// comissão estimada do mês: até agora, projeção no ritmo atual e quanto vender a mais de extras e produtos rende
+const PRODUTO_MEDIO = 60, EXTRA_MEDIO = 35;
 function cardComissao(lancMes, perfil){
-  const meta = +perfil.ganho_desejado || 0; if (!meta) return "";
   const h = today(), mI = mesIni(h), mF = mesFim(h), t = totais(lancMes), temHoje = lancMes.some(l => l.data === h);
-  const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1));
-  const real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, perfil), proj = feitos ? com / feitos * (feitos + restantes) : 0;
-  return cardLinha(`Meta de comissão de ${pD(h).toLocaleDateString("pt-BR",{month:"long"})}`, `${money0(meta)} · ${real ? "pela comissão lançada até hoje" : "estimada pela % de comissão"}`,
-    com, meta, feitos ? feitos / ((feitos + restantes) || 1) : 0, restantes, proj, real ? "de comissão" : "de comissão estimada");
+  const restantes = uteisEntre(temHoje ? addD(h, 1) : h, mF), feitos = uteisEntre(mI, temHoje ? h : addD(h, -1)), u = feitos + restantes;
+  const cs = (+perfil.comissao_servicos || 0) / 100, cp = (+perfil.comissao_produtos || 0) / 100;
+  if (!cs && !cp) return "";
+  const meta = +perfil.ganho_desejado || 0, real = t.comissao_rs > 0, com = real ? t.comissao_rs : ganhoEstimado(t, perfil);
+  const proj = feitos ? com / feitos * u : 0, mes = pD(h).toLocaleDateString("pt-BR",{month:"long"});
+  const partes = [["Serviços", t.servicos * cs, `${pctTxt(cs)} de ${money0(t.servicos)}`], ["Serviços extras", t.extras * cs, `${pctTxt(cs)} de ${money0(t.extras)}`], ["Produtos", t.produtos * cp, `${pctTxt(cp)} de ${money0(t.produtos)}`]];
+  const tEx = t.qtd_extras ? t.extras / t.qtd_extras : EXTRA_MEDIO;
+  const cen = restantes ? [
+    ["+1 serviço extra por dia", tEx * cs * restantes, `extra de cerca de ${money0(tEx)} × ${restantes} dias`],
+    ["+1 produto por dia", PRODUTO_MEDIO * cp * restantes, `produto de cerca de ${money0(PRODUTO_MEDIO)} × ${restantes} dias`],
+    ["+2 extras e +2 produtos por dia", (2 * tEx * cs + 2 * PRODUTO_MEDIO * cp) * restantes, "os dois juntos, todo dia"]] : [];
+  const nv = !meta || !proj ? "n" : proj >= meta ? "good" : proj >= meta * .9 ? "warn" : "bad";
+  const melhor = cen.length ? proj + cen[2][1] : 0;
+  return `<section class="card com-est"><div class="card-head"><div><h2>Comissão estimada de ${mes}</h2><span class="sm muted">${real ? "Pela comissão lançada pelo admin até hoje" : `Pela sua comissão: ${numIn(perfil.comissao_servicos) || 0}% em serviços e extras, ${numIn(perfil.comissao_produtos) || 0}% em produtos`}</span></div></div>
+    <div class="com-big"><div><span class="lbl">Até agora</span><div class="num acc">${money0(com)}</div><span class="xs muted">${feitos} de ${u} dias de trabalho</span></div>
+      <div><span class="lbl">Fecha o mês em</span><div class="num ${nv}">${proj ? money0(proj) : "—"}</div><span class="xs muted">se mantiver o ritmo</span></div>
+      <div><span class="lbl">Meta de comissão</span><div class="num">${meta ? money0(meta) : "—"}</div><span class="xs muted">${!meta ? "o admin não definiu" : proj >= meta ? `passa ${money0(proj - meta)}` : `faltariam ${money0(meta - proj)}`}</span></div></div>
+    ${meta ? `<div style="margin-top:10px">${barra(com / meta, null, Math.max(.05, feitos / (u || 1)))}</div>` : ""}
+    <h3 style="margin:16px 0 4px">De onde vem a sua comissão</h3>
+    <div class="list">${partes.map(([n, v, d]) => `<div class="li"><span class="sm"><b>${n}</b> <span class="muted">· ${d}</span></span><b>${money0(v)}</b></div>`).join("")}</div>
+    ${cen.length && (cs || cp) ? `<h3 style="margin:16px 0 4px">Quanto você ganha a mais até o fim do mês</h3><span class="xs muted">Vendendo a mais em cada um dos ${restantes} dias de trabalho que faltam.</span>
+    <div class="com-cen">${cen.map(([n, v, d], i) => `<div class="${i === 2 ? "top" : ""}"><span class="sm"><b>${n}</b></span><div class="num good">+${money0(v)}</div><span class="xs muted">${d}</span></div>`).join("")}</div>
+    <div class="hero-dica ${meta && proj < meta && melhor >= meta ? "good" : ""}" style="margin-top:12px">${meta && proj < meta ? (melhor >= meta ? `Com +2 extras e +2 produtos por dia, a sua comissão vai para <b>${money0(melhor)}</b> e você bate a meta de ${money0(meta)}.` : `Com +2 extras e +2 produtos por dia, a sua comissão vai para <b>${money0(melhor)}</b>, ${money0(melhor - proj)} a mais no bolso.`) : `Com +2 extras e +2 produtos por dia, a sua comissão fecha o mês em <b>${money0(melhor)}</b>.`}</div>` : ""}
+  </section>`;
 }
 function cardRitmo(lancMes, metasB, perfil){
   const h = today(), mI = mesIni(h), mF = mesFim(h);
