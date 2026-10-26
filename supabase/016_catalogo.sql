@@ -27,3 +27,6 @@ drop policy if exists ca_ler on public.catalogo;
 create policy ca_ler on public.catalogo for select to authenticated
   using (exists (select 1 from public.equipe e where e.id = auth.uid() and e.ativo));
 
+-- quantos clientes são assinantes (em %), para a comissão estimada aplicar os descontos
+alter table public.barbearia_config add column if not exists pct_prime numeric(5,2) not null default 30 check (pct_prime between 0 and 100);
+alter table public.barbearia_config add column if not exists pct_start numeric(5,2) not null default 10 check (pct_start between 0 and 100);
